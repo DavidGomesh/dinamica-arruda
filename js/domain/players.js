@@ -1,13 +1,6 @@
-const ACTIVE_PLAYER_LIMIT = 10;
+import { normalizeEquivalentText } from "./text.js";
 
-export function normalizeName(value = "") {
-  return value
-    .trim()
-    .replace(/\s+/g, " ")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLocaleLowerCase("pt-BR");
-}
+const ACTIVE_PLAYER_LIMIT = 10;
 
 function fullHex(color) {
   const value = color.trim().replace("#", "");
@@ -33,7 +26,7 @@ function validateCandidate(players, candidate, ignoredId = null) {
   if (!candidate.icon) throw new Error("Escolha um ícone para o Jogador.");
 
   const activeOthers = players.filter((player) => !player.archived && player.id !== ignoredId);
-  if (activeOthers.some((player) => normalizeName(player.name) === normalizeName(name))) {
+  if (activeOthers.some((player) => normalizeEquivalentText(player.name) === normalizeEquivalentText(name))) {
     throw new Error("Já existe um Jogador ativo com esse nome.");
   }
   if (activeOthers.some((player) => player.icon === candidate.icon)) {
@@ -76,7 +69,10 @@ export function updatePlayer(state, playerId, changes) {
   }
   const candidate = { ...current, ...changes, id: playerId };
   const name = validateCandidate(state.players, candidate, playerId);
-  const manualTextColor = changes.textColorMode === "auto" ? "" : changes.textColor;
+  const changesTextColor = Object.prototype.hasOwnProperty.call(changes, "textColor");
+  const manualTextColor = changes.textColorMode === "auto"
+    ? ""
+    : changesTextColor ? changes.textColor : current.textColorMode === "manual" ? current.textColor : "";
   const next = {
     ...candidate,
     name,
@@ -91,7 +87,7 @@ export function updatePlayer(state, playerId, changes) {
 
 function playerHasHistory(state, playerId) {
   const matches = [...(state.matches || []), ...(state.activeMatch ? [state.activeMatch] : [])];
-  return matches.some((match) => match.participantIds?.includes(playerId));
+  return matches.some((match) => match.playerIds?.includes(playerId));
 }
 
 export function archiveOrDeletePlayer(state, playerId) {

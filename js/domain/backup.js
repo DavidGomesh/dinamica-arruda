@@ -1,16 +1,7 @@
-import { SCHEMA_VERSION } from "../storage/store.js";
-
-function validateState(data) {
-  const requiredArrays = ["players", "matches"];
-  const valid = data && typeof data === "object"
-    && requiredArrays.every((field) => Array.isArray(data[field]))
-    && data.settings && data.content && data.decks
-    && Object.prototype.hasOwnProperty.call(data, "activeMatch");
-  if (!valid) throw new Error("Backup com estrutura inválida.");
-  return data;
-}
+import { SCHEMA_VERSION, validateState } from "../storage/store.js";
 
 export function createBackup(state, dependencies = {}) {
+  validateState(state);
   return {
     schemaVersion: SCHEMA_VERSION,
     exportedAt: (dependencies.now || (() => new Date()))().toISOString(),

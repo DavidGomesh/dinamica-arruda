@@ -36,3 +36,4 @@ Nenhuma.
 
 - Implementação concluída em 2026-08-08 com fundação estática navegável, PWA offline, store versionada, cronologia compartilhada, administração de Jogadores, configurações, conteúdo, baralhos e backup/restauração.
 - Testes automatizados cobrem os seams acordados: cronologia, Jogadores, configurações, persistência e recuperação, APIs de Partidas, conteúdo/baralhos e backup.
+- A revisão em dois eixos foi aplicada; os achados de aderência sobre validação, migração, cronologia, atalhos, variedade de conteúdo e baralho obsoleto foram corrigidos antes do encerramento.

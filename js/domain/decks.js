@@ -28,12 +28,20 @@ export function createDeck(state, game, { random = Math.random } = {}) {
 export function drawNext(state, game) {
   const deck = state.decks[game];
   if (!deck) throw new Error("Monte o baralho antes de sortear.");
-  if (!deck.remainingIds.length) return { state, item: null, exhausted: true };
-  const [id, ...remainingIds] = deck.remainingIds;
-  const item = activeItems(state, game).find((candidate) => candidate.id === id);
-  const nextDeck = { remainingIds, usedIds: [...deck.usedIds, id] };
+  const activeById = new Map(activeItems(state, game).map((item) => [item.id, item]));
+  const remainingIds = [...deck.remainingIds];
+  const usedIds = [...deck.usedIds];
+  let item = null;
+  while (remainingIds.length && !item) {
+    const id = remainingIds.shift();
+    usedIds.push(id);
+    item = activeById.get(id) || null;
+  }
+  const nextDeck = { remainingIds, usedIds };
+  const nextState = { ...state, decks: { ...state.decks, [game]: nextDeck } };
+  if (!item) return { state: nextState, item: null, exhausted: true };
   return {
-    state: { ...state, decks: { ...state.decks, [game]: nextDeck } },
+    state: nextState,
     item,
     exhausted: false,
   };

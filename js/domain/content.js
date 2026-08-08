@@ -1,5 +1,5 @@
 import { BUILT_IN_CONTENT } from "../data/content.js";
-import { normalizeName } from "./players.js";
+import { normalizeEquivalentText } from "./text.js";
 
 const GAMES = Object.keys(BUILT_IN_CONTENT);
 
@@ -15,9 +15,9 @@ function validateText(state, game, text, ignoredId) {
   requireGame(game);
   const clean = text?.trim().replace(/\s+/g, " ");
   if (!clean) throw new Error("O texto do conteúdo não pode ser vazio.");
-  const normalized = normalizeName(clean);
+  const normalized = normalizeEquivalentText(clean);
   const duplicate = state.content.custom.some((item) => item.game === game
-    && item.id !== ignoredId && normalizeName(item.text) === normalized);
+    && item.id !== ignoredId && normalizeEquivalentText(item.text) === normalized);
   if (duplicate) throw new Error("Conteúdo personalizado duplicado neste jogo.");
   return clean;
 }

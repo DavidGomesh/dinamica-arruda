@@ -16,6 +16,14 @@ const mimeThings = [
   "um guepardo", "um robô", "uma melancia", "um astronauta", "um guarda-chuva",
   "um pinguim", "uma bicicleta", "um violão", "um dragão", "um ET",
 ];
+const mimeFeatured = [
+  "Guepardo", "Capivara", "Pinguim", "Girafa", "Golfinho", "Coruja", "Tartaruga", "Leão", "Canguru", "Sapo",
+  "Melancia", "Banana", "Abacaxi", "Morango", "Laranja", "Coco", "Manga", "Uva", "Maçã", "Limão",
+  "Guarda-chuva", "Liquidificador", "Bicicleta", "Panela", "Travesseiro", "Violão", "Mochila", "Relógio", "Lanterna", "Patins",
+  "Astronauta", "Pirata", "Detetive", "Super-herói", "Mágico", "Sereia", "Robô", "ET", "Ninja", "Rei",
+  "Pelé", "Ayrton Senna", "Charlie Chaplin", "Albert Einstein", "Frida Kahlo", "Usain Bolt", "Michael Jackson", "Elvis Presley", "Xuxa", "Carmen Miranda",
+  "Escovar os dentes", "Pular corda", "Fazer bolo", "Andar de skate", "Plantar uma árvore", "Tocar bateria", "Nadar", "Espreguiçar", "Tirar uma selfie", "Montar uma barraca",
+];
 
 const foreheadGroups = [
   ["Animal", ["Guepardo", "Capivara", "Pinguim", "Girafa", "Golfinho", "Coruja", "Tartaruga", "Leão", "Tamanduá", "Canguru"]],
@@ -40,7 +48,7 @@ const questionEnds = [
 ];
 
 export const BUILT_IN_CONTENT = Object.freeze({
-  mimica: items("mimica", combinations(mimeActions, mimeThings).slice(0, 160)),
+  mimica: items("mimica", [...mimeFeatured, ...combinations(mimeActions, mimeThings).slice(0, 100)]),
   palavraNaTesta: items("palavraNaTesta", foreheadWords),
   quemMaisProvavel: items("quemMaisProvavel", combinations(questionStarts, questionEnds).slice(0, 110)),
 });

@@ -13,7 +13,16 @@ function requireActive(state) {
   return state.activeMatch;
 }
 
+const EVENT_TYPES = new Set([
+  "match-created", "match-started", "match-interrupted", "match-resumed", "match-finished",
+  "cycle-started", "cycle-finished", "turn-started", "turn-finished",
+  "challenge-presented", "challenge-finished", "question-presented",
+  "voting-started", "voting-interrupted", "voting-resumed", "voting-finished",
+  "vote-recorded", "result-corrected",
+]);
+
 function appendEvent(state, type, payload = {}, dependencies = {}) {
+  if (!EVENT_TYPES.has(type)) throw new Error("Tipo de acontecimento inválido.");
   const match = requireActive(state);
   const event = {
     id: idFrom(dependencies, "evento"),
@@ -29,7 +38,7 @@ function appendEvent(state, type, payload = {}, dependencies = {}) {
 
 export function createMatch(state, input, dependencies = {}) {
   if (state.activeMatch) throw new Error("Já existe uma Partida interrompida ou em andamento.");
-  if (!input.game || !input.participantIds?.length) throw new Error("Informe jogo e Jogadores participantes.");
+  if (!input.game || !input.playerIds?.length) throw new Error("Informe jogo e Jogadores.");
   const occurredAt = createTimestamp(dependencies.clock);
   const id = idFrom(dependencies, "partida");
   return {
@@ -37,14 +46,22 @@ export function createMatch(state, input, dependencies = {}) {
     activeMatch: {
       id,
       game: input.game,
-      participantIds: [...input.participantIds],
-      state: "in-progress",
+      playerIds: [...input.playerIds],
+      state: "created",
       createdAt: occurredAt,
-      startedAt: occurredAt,
+      startedAt: null,
       endedAt: null,
       events: [{ id: `${id}-created`, type: "match-created", occurredAt }],
     },
   };
+}
+
+export function startMatch(state, payload = {}, dependencies = {}) {
+  const current = requireActive(state);
+  if (current.startedAt) throw new Error("A Partida já foi iniciada.");
+  const next = appendEvent(state, "match-started", payload, dependencies);
+  const startedAt = next.activeMatch.events[next.activeMatch.events.length - 1].occurredAt;
+  return { ...next, activeMatch: { ...next.activeMatch, state: "in-progress", startedAt } };
 }
 
 export function recordMatchEvent(state, type, payload, dependencies) {

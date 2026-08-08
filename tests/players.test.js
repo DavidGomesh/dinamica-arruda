@@ -4,16 +4,16 @@ import assert from "node:assert/strict";
 import {
   addPlayer,
   archiveOrDeletePlayer,
-  normalizeName,
   updatePlayer,
 } from "../js/domain/players.js";
+import { normalizeEquivalentText } from "../js/domain/text.js";
 
 const baseState = () => ({ players: [], matches: [], activeMatch: null });
 const ids = ["p1", "p2", "p3"];
 const createId = () => ids.shift();
 
 test("nome equivalente ignora espaços duplicados, caixa e acentos", () => {
-  assert.equal(normalizeName("  Jo\u00e3o   D'\u00c1vila "), "joao d'avila");
+  assert.equal(normalizeEquivalentText("  Jo\u00e3o   D'\u00c1vila "), "joao d'avila");
 });
 
 test("Jogador exige nome, cor e ícone e recebe identidade imutável", () => {
@@ -89,7 +89,7 @@ test("Jogador com histórico é arquivado e sem histórico é excluído", () => 
     { id: "p1", name: "Ana", icon: "et", archived: false },
     { id: "p2", name: "Beto", icon: "guepardo", archived: false },
   ];
-  state.matches = [{ id: "m1", participantIds: ["p1"] }];
+  state.matches = [{ id: "m1", playerIds: ["p1"] }];
 
   const archived = archiveOrDeletePlayer(state, "p1");
   const deleted = archiveOrDeletePlayer(archived, "p2");

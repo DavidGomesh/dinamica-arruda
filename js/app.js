@@ -57,7 +57,7 @@ function currentRoute() {
 
 function homeView(state) {
   const resume = state.activeMatch ? `<div class="resume">
-    <div><strong>Partida interrompida</strong><p>${GAME_LABELS[state.activeMatch.game] || state.activeMatch.game} · ${state.activeMatch.participantIds.length} Jogadores</p></div>
+    <div><strong>Partida interrompida</strong><p>${GAME_LABELS[state.activeMatch.game] || state.activeMatch.game} · ${state.activeMatch.playerIds.length} Jogadores</p></div>
     <div class="actions"><a class="button" href="#game-${state.activeMatch.game}">Continuar partida</a><button class="danger" data-action="discard-match">Descartar partida</button></div>
   </div>` : "";
   return page("Bora brincar?", "Diversão sem enrolação", `${resume}
@@ -110,9 +110,9 @@ function settingsView(state) {
     <h2>Mímica</h2><div class="form-grid">
       <label><span>Duração por Desafio (segundos)</span><input type="number" name="mimicaDuration" min="10" max="600" value="${settings.games.mimica.durationSeconds}"></label>
       <label><span>Desafios por Turno</span><input type="number" name="mimicaChallenges" min="1" max="20" value="${settings.games.mimica.challengesPerTurn}"></label>
-    </div><h2>Palavra na Testa</h2>
+    </div><div class="actions"><button class="ghost" type="button" data-action="set-setting" data-input="mimicaDuration" data-value="30">30 s</button><button class="ghost" type="button" data-action="set-setting" data-input="mimicaDuration" data-value="40">40 s</button><button class="ghost" type="button" data-action="set-setting" data-input="mimicaDuration" data-value="60">60 s</button><button class="ghost" type="button" data-action="set-setting" data-input="mimicaChallenges" data-value="2">2 Desafios</button><button class="ghost" type="button" data-action="set-setting" data-input="mimicaChallenges" data-value="3">3 Desafios</button><button class="ghost" type="button" data-action="set-setting" data-input="mimicaChallenges" data-value="5">5 Desafios</button></div><h2>Palavra na Testa</h2>
     <label><span>Duração por Turno (segundos)</span><input type="number" name="foreheadDuration" min="10" max="600" value="${settings.games.palavraNaTesta.durationSeconds}"></label>
-    <p class="muted">Atalhos recomendados: Mímica 30, 40 ou 60 s; Palavra na Testa 60, 90 ou 120 s.</p>
+    <div class="actions"><button class="ghost" type="button" data-action="set-setting" data-input="foreheadDuration" data-value="60">60 s</button><button class="ghost" type="button" data-action="set-setting" data-input="foreheadDuration" data-value="90">90 s</button><button class="ghost" type="button" data-action="set-setting" data-input="foreheadDuration" data-value="120">120 s</button></div>
     <button type="submit">Salvar configurações</button>
   </form>`, '<a class="button secondary" href="#home">← Início</a>');
 }
@@ -142,7 +142,7 @@ function backupView(state) {
 
 function historyView(state) {
   const matches = [...state.matches].sort((a, b) => b.startedAt.instant.localeCompare(a.startedAt.instant));
-  return page("Histórico", "Partidas salvas", matches.length ? `<ul class="history-list">${matches.map((match) => `<li class="row-card"><div><strong>${GAME_LABELS[match.game]}</strong><br><span class="muted">${formatTimestamp(match.startedAt)} · ${match.participantIds.length} Jogadores</span></div><span class="status">${escapeHtml(match.state)}</span></li>`).join("")}</ul>` : '<p class="empty">As Partidas concluídas aparecerão aqui.</p>', '<a class="button secondary" href="#home">← Início</a>');
+  return page("Histórico", "Partidas salvas", matches.length ? `<ul class="history-list">${matches.map((match) => `<li class="row-card"><div><strong>${GAME_LABELS[match.game]}</strong><br><span class="muted">${formatTimestamp(match.startedAt)} · ${match.playerIds.length} Jogadores</span></div><span class="status">${escapeHtml(match.state)}</span></li>`).join("")}</ul>` : '<p class="empty">As Partidas concluídas aparecerão aqui.</p>', '<a class="button secondary" href="#home">← Início</a>');
 }
 
 function gameView(game) {
@@ -217,7 +217,9 @@ app.addEventListener("click", (event) => {
   if (!button) return;
   const { action, id } = button.dataset;
   safely(() => {
-    if (action === "archive-player" && confirm("Remover este Jogador? Com histórico, ele será arquivado; sem histórico, será excluído.")) {
+    if (action === "set-setting") {
+      document.querySelector("#settings-form").elements[button.dataset.input].value = button.dataset.value;
+    } else if (action === "archive-player" && confirm("Remover este Jogador? Com histórico, ele será arquivado; sem histórico, será excluído.")) {
       store.update((state) => archiveOrDeletePlayer(state, id)); render();
     } else if (action === "restore-player") {
       store.update((state) => updatePlayer(state, id, { archived: false })); render();
