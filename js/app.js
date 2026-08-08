@@ -7,12 +7,19 @@ import {
 import { BUILT_IN_CONTENT } from "./data/content.js";
 import { parseBackup, previewBackup, serializeBackup } from "./domain/backup.js";
 import { formatTimestamp } from "./domain/time.js";
+import {
+  advanceClock, beginTimedMatch, beginTurn, clockView, completeTimedMatch,
+  correctLatestResult, endMatchEarly, endTurnEarly, interruptTimedMatch,
+  recordChallengeResult, reshuffleTimedDeck, resumeTimedMatch, startNewCycle,
+} from "./domain/timed-games.js";
 
 const store = createStore();
 const app = document.querySelector("#app");
 const toast = document.querySelector("#toast");
 let pendingRestore = null;
 let deferredInstallPrompt = null;
+let wakeLock = null;
+let lastSoundToken = "";
 
 const COLORS = [
   "#facc15", "#fb923c", "#fb7185", "#e879f9", "#c084fc", "#8b5cf6", "#6366f1",
@@ -145,8 +152,86 @@ function historyView(state) {
   return page("Histórico", "Partidas salvas", matches.length ? `<ul class="history-list">${matches.map((match) => `<li class="row-card"><div><strong>${GAME_LABELS[match.game]}</strong><br><span class="muted">${formatTimestamp(match.startedAt)} · ${match.playerIds.length} Jogadores</span></div><span class="status">${escapeHtml(match.state)}</span></li>`).join("")}</ul>` : '<p class="empty">As Partidas concluídas aparecerão aqui.</p>', '<a class="button secondary" href="#home">← Início</a>');
 }
 
-function gameView(game) {
-  return page(GAME_LABELS[game] || "Brincadeira", "Área pronta para jogar", `<div class="callout"><h2>Fundação concluída</h2><p>Cadastro, configurações, conteúdo, persistência e APIs de cronologia já estão disponíveis. O fluxo completo desta brincadeira será conectado no ticket específico do jogo.</p></div><a class="button" href="#players">Preparar Jogadores</a>`, '<a class="button secondary" href="#home">← Início</a>');
+function playerName(state, id) {
+  return state.players.find((player) => player.id === id)?.name || "Jogador";
+}
+
+function turnResults(match, turnId) {
+  const results = match.events.filter((event) => event.type === "challenge-finished" && event.turnId === turnId)
+    .map((event) => ({ ...event }));
+  const byId = new Map(results.map((result) => [result.id, result]));
+  match.events.filter((event) => event.type === "result-corrected").forEach((correction) => {
+    const original = byId.get(correction.resultId);
+    if (original) original.result = correction.result;
+  });
+  return results;
+}
+
+function resultLabel(result) {
+  return ({ correct: "Acerto", missed: "Erro", skipped: "Pulo", ignored: "Ignorado" })[result] || result;
+}
+
+function lastTurnSummary(state, match) {
+  const finished = [...match.events].reverse().find((event) => event.type === "turn-finished");
+  if (!finished) return "";
+  const results = turnResults(match, finished.turnId);
+  const totals = results.reduce((all, result) => ({ ...all, [result.result]: (all[result.result] || 0) + 1 }), {});
+  return `<div class="turn-summary"><strong>Resumo do Turno de ${escapeHtml(playerName(state, finished.playerId))}</strong><p>${Object.entries(totals).map(([result, count]) => `${count} ${resultLabel(result).toLowerCase()}`).join(" · ") || "Nenhum resultado"}</p></div>`;
+}
+
+function timerMarkup(state) {
+  const view = clockView(state, Date.now());
+  if (!view) return "";
+  if (view.stage === "countdown") return `<div class="countdown" role="timer" aria-live="assertive"><span>${view.countdownNumber}</span><small>Prepare-se!</small></div>`;
+  return `<div class="game-timer ${view.tense ? "tense" : ""} ${view.finalSeconds ? "final" : ""}" role="timer" aria-label="${view.seconds} segundos restantes"><span>${view.seconds}</span><small>segundos</small></div>`;
+}
+
+function gameView(state, game) {
+  if (!["mimica", "palavraNaTesta"].includes(game)) {
+    return page(GAME_LABELS[game] || "Brincadeira", "Em breve", '<p class="empty">Este jogo será conectado em outro ticket.</p>', '<a class="button secondary" href="#home">← Início</a>');
+  }
+  const active = state.activeMatch;
+  if (active && active.game !== game) {
+    return page(GAME_LABELS[game], "Já existe uma Partida", `<div class="callout"><p>Continue ou descarte a Partida de ${escapeHtml(GAME_LABELS[active.game])} antes de começar outra.</p><a class="button" href="#game-${active.game}">Continuar partida</a></div>`, '<a class="button secondary" href="#home">← Início</a>');
+  }
+  if (!active) {
+    const players = state.players.filter((player) => !player.archived);
+    const choices = players.map((player) => `<label class="participant-choice"><input type="checkbox" name="playerIds" value="${escapeHtml(player.id)}"><span class="player-badge" style="background:${player.color};color:${player.textColor}">${iconFor(player.icon)}</span><strong>${escapeHtml(player.name)}</strong></label>`).join("");
+    return page(GAME_LABELS[game], "Escolha os Jogadores", players.length
+      ? `<form id="timed-game-form" data-game="${game}"><div class="participant-grid">${choices}</div><button type="submit">Iniciar Partida</button></form>`
+      : '<div class="empty"><p>Cadastre pelo menos um Jogador para começar.</p><a class="button" href="#players">Cadastrar Jogadores</a></div>', '<a class="button secondary" href="#home">← Início</a>');
+  }
+
+  const timed = active.timed;
+  const summary = lastTurnSummary(state, active);
+  if (active.state === "interrupted") {
+    return page(GAME_LABELS[game], "Partida pausada", `${timerMarkup(state)}<p class="empty">O tempo está congelado. Continue quando o aparelho estiver pronto.</p><div class="actions"><button data-action="resume-timed">Continuar</button><button class="danger" data-action="end-match">Encerrar partida</button></div>`, '<a class="button secondary" href="#home">← Início</a>');
+  }
+  if (timed.phase === "choose-player") {
+    const ordered = [...active.playerIds].sort((left, right) => Number(timed.playedPlayerIds.includes(left)) - Number(timed.playedPlayerIds.includes(right)));
+    const choices = ordered.map((id) => {
+      const played = timed.playedPlayerIds.includes(id);
+      return `<button class="player-turn ${id === timed.suggestedPlayerId ? "suggested" : "secondary"}" data-action="begin-turn" data-id="${escapeHtml(id)}"><span>${escapeHtml(playerName(state, id))}</span>${id === timed.suggestedPlayerId ? "<small>Sugerido</small>" : played ? "<small>Já jogou neste ciclo</small>" : ""}</button>`;
+    }).join("");
+    return page(GAME_LABELS[game], `Ciclo ${timed.cycleNumber} · próximo Turno`, `${summary}<div class="player-turn-grid">${choices}</div><button class="danger" data-action="end-match">Encerrar partida</button>`, '<a class="button secondary" href="#home">← Início</a>');
+  }
+  if (timed.phase === "cycle-complete") {
+    return page("Ciclo concluído!", GAME_LABELS[game], `${summary}<p class="lede">Todos os Jogadores receberam um Turno neste Ciclo.</p><div class="actions"><button data-action="new-cycle">Iniciar novo ciclo</button><button class="secondary" data-action="complete-match">Encerrar partida</button></div>`, '<a class="button secondary" href="#home">← Início</a>');
+  }
+  if (timed.phase === "deck-exhausted") {
+    return page("O baralho acabou", GAME_LABELS[game], '<p class="lede">Todos os Desafios ativos já apareceram. Embaralhe novamente para continuar.</p><button data-action="reshuffle">Embaralhar novamente</button>', '<a class="button secondary" href="#home">← Início</a>');
+  }
+  if (timed.phase === "countdown") {
+    return page(playerName(state, timed.currentTurn.playerId), `Ciclo ${timed.cycleNumber} · prepare o Turno`, `${timerMarkup(state)}<div class="actions game-controls"><button class="secondary" data-action="pause-timed">Pausar</button><button class="danger" data-action="end-turn">Encerrar Turno</button><button class="danger" data-action="end-match">Encerrar partida</button></div>`, '<a class="button secondary" href="#home">← Início</a>');
+  }
+
+  const correction = active.events.some((event) => event.type === "challenge-finished" && event.turnId === timed.currentTurn.id)
+    ? `<details class="correction"><summary>Corrigir resultado mais recente</summary><div class="actions">${(game === "mimica" ? ["correct", "missed", "ignored"] : ["correct", "skipped", "missed", "ignored"]).map((result) => `<button class="ghost" data-action="correct-result" data-result="${result}">${resultLabel(result)}</button>`).join("")}</div></details>` : "";
+  const challenge = `<div class="challenge-card"><p>Desafio</p><strong>${escapeHtml(timed.currentChallenge.content)}</strong></div>`;
+  const actions = game === "mimica"
+    ? '<div class="result-actions"><button class="correct" data-action="challenge-result" data-result="correct">✓ Acertaram</button><button class="missed" data-action="challenge-result" data-result="missed">✕ Não acertaram</button></div>'
+    : '<div class="headband-zones"><button class="correct" data-action="challenge-result" data-result="correct"><span>✓</span> Acertou</button><button class="skipped" data-action="challenge-result" data-result="skipped"><span>↷</span> Pulou</button></div>';
+  return page(playerName(state, timed.currentTurn.playerId), `Ciclo ${timed.cycleNumber}`, `${timerMarkup(state)}${challenge}${actions}${correction}<div class="actions game-controls"><button class="secondary" data-action="pause-timed">Pausar</button><button class="danger" data-action="end-turn">Encerrar Turno</button><button class="danger" data-action="end-match">Encerrar partida</button></div>`, '<a class="button secondary" href="#home">← Início</a>');
 }
 
 function render() {
@@ -159,13 +244,14 @@ function render() {
   else if (route.name === "content") app.innerHTML = contentView(state, route.params);
   else if (route.name === "backup") app.innerHTML = backupView(state);
   else if (route.name === "history") app.innerHTML = historyView(state);
-  else if (route.name.startsWith("game-")) app.innerHTML = gameView(route.name.slice(5));
+  else if (route.name.startsWith("game-")) app.innerHTML = gameView(state, route.name.slice(5));
   else { location.hash = "#home"; return; }
   document.querySelectorAll(".bottom-nav a").forEach((link) => {
     const section = link.hash.slice(1);
     if (section === route.name) link.setAttribute("aria-current", "page"); else link.removeAttribute("aria-current");
   });
   document.title = `${app.querySelector("h1")?.textContent || "Dinâmica Arruda"} · Dinâmica Arruda`;
+  syncTimedEffects(state);
 }
 
 function formValues(form) { return Object.fromEntries(new FormData(form)); }
@@ -189,6 +275,10 @@ app.addEventListener("submit", (event) => {
     } else if (event.target.id === "content-form") {
       store.update((state) => values.id ? updateCustomContent(state, values.id, values) : addCustomContent(state, values));
       location.hash = `#content?game=${values.game}`; showToast("Conteúdo salvo.");
+    } else if (event.target.id === "timed-game-form") {
+      const playerIds = [...event.target.querySelectorAll('[name="playerIds"]:checked')].map((input) => input.value);
+      store.update((state) => beginTimedMatch(state, { game: event.target.dataset.game, playerIds }));
+      render(); playSound("start", store.load());
     } else if (event.target.id === "content-filter") {
       location.hash = `#content?game=${values.game}`;
     }
@@ -244,11 +334,80 @@ app.addEventListener("click", (event) => {
       const answer = prompt('Para apagar tudo, digite APAGAR.');
       if (answer === "APAGAR") { store.clear(); pendingRestore = null; location.hash = "#home"; render(); showToast("Todos os dados foram apagados."); }
       else if (answer !== null) showToast("Confirmação incorreta. Nada foi apagado.");
+    } else if (action === "begin-turn") {
+      store.update((state) => beginTurn(state, id, { nowMs: Date.now() })); render();
+    } else if (action === "challenge-result") {
+      store.update((state) => recordChallengeResult(state, button.dataset.result, { nowMs: Date.now() }));
+      playSound(button.dataset.result === "correct" ? "correct" : "missed", store.load()); render();
+    } else if (action === "correct-result") {
+      store.update((state) => correctLatestResult(state, button.dataset.result)); showToast("Resultado corrigido."); render();
+    } else if (action === "pause-timed") {
+      store.update((state) => interruptTimedMatch(state, { nowMs: Date.now(), reason: "manual" })); render();
+    } else if (action === "resume-timed") {
+      store.update((state) => resumeTimedMatch(state, { nowMs: Date.now(), reason: "manual" })); render();
+    } else if (action === "end-turn" && confirm("Encerrar este Turno? O Desafio visível será registrado como ignorado.")) {
+      store.update((state) => endTurnEarly(state, { nowMs: Date.now() })); render();
+    } else if (action === "end-match" && confirm("Encerrar esta Partida? Os resultados já registrados serão preservados.")) {
+      store.update((state) => endMatchEarly(state, { nowMs: Date.now() })); location.hash = "#history"; playSound("end", store.load());
+    } else if (action === "new-cycle") {
+      store.update((state) => startNewCycle(state)); render();
+    } else if (action === "complete-match") {
+      store.update((state) => completeTimedMatch(state)); location.hash = "#history"; playSound("end", store.load());
+    } else if (action === "reshuffle") {
+      store.update((state) => reshuffleTimedDeck(state, { nowMs: Date.now() })); render();
     }
   });
 });
 
+function playSound(kind, state) {
+  if (!state.settings.soundEffects) return;
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContext) return;
+  const context = new AudioContext();
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  oscillator.frequency.value = ({ start: 660, correct: 880, missed: 240, tick: 520, end: 180 })[kind] || 440;
+  gain.gain.setValueAtTime(.08, context.currentTime);
+  gain.gain.exponentialRampToValueAtTime(.001, context.currentTime + .11);
+  oscillator.connect(gain); gain.connect(context.destination); oscillator.start(); oscillator.stop(context.currentTime + .12);
+  oscillator.addEventListener("ended", () => context.close());
+}
+
+async function syncTimedEffects(state) {
+  const timed = state.activeMatch?.timed;
+  const view = timed?.clock ? clockView(state, Date.now()) : null;
+  const shouldLock = document.visibilityState === "visible" && view?.status === "running";
+  if (shouldLock && !wakeLock && navigator.wakeLock?.request) {
+    try { wakeLock = await navigator.wakeLock.request("screen"); wakeLock.addEventListener("release", () => { wakeLock = null; }); } catch { /* API opcional */ }
+  } else if (!shouldLock && wakeLock) {
+    await wakeLock.release(); wakeLock = null;
+  }
+  if (!view || view.status !== "running") return;
+  const token = `${state.activeMatch.id}:${view.stage}:${view.seconds}:${view.countdownNumber}`;
+  if (token === lastSoundToken) return;
+  const previousToken = lastSoundToken;
+  lastSoundToken = token;
+  if (view.stage === "active" && view.seconds <= 3) playSound("tick", state);
+  else if (view.stage === "expired") playSound("end", state);
+  else if (view.stage === "active" && previousToken.includes(":countdown:")) playSound("start", state);
+}
+
 window.addEventListener("hashchange", render);
+document.addEventListener("visibilitychange", () => {
+  const state = store.load();
+  if (!state.activeMatch?.timed?.clock) return;
+  safely(() => {
+    if (document.hidden) store.update((current) => interruptTimedMatch(current, { nowMs: Date.now(), reason: "background" }));
+    else store.update((current) => resumeTimedMatch(current, { nowMs: Date.now(), reason: "foreground" }));
+    render();
+  });
+});
+window.addEventListener("beforeunload", () => {
+  const state = store.load();
+  if (state.activeMatch?.timed?.clock?.status === "running") {
+    store.update((current) => interruptTimedMatch(current, { nowMs: Date.now(), reason: "browser-closed" }));
+  }
+});
 window.addEventListener("beforeinstallprompt", (event) => {
   event.preventDefault(); deferredInstallPrompt = event;
   document.querySelector("#install-button").hidden = false;
@@ -263,5 +422,16 @@ if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => navigator.serviceWorker.register("./service-worker.js")
     .catch(() => showToast("Não foi possível preparar o uso offline.")));
 }
+
+const restored = store.load();
+if (restored.activeMatch?.timed?.clock?.status === "running") {
+  store.update((state) => interruptTimedMatch(state, { nowMs: Date.now(), reason: "browser-restored" }));
+}
+
+window.setInterval(() => {
+  const state = store.load();
+  if (!state.activeMatch?.timed?.clock || state.activeMatch.timed.clock.status !== "running") return;
+  safely(() => { store.update((current) => advanceClock(current, Date.now())); render(); });
+}, 200);
 
 render();

@@ -31,3 +31,8 @@ Implementar Mímica e Palavra na Testa sobre a fundação persistente e responsi
 ## Dependências
 
 - `01-foundation-pwa-and-data.md`
+
+## Comments
+
+- Implementação concluída em 2026-08-08 com os fluxos completos de Mímica e Palavra na Testa, Ciclos livres, seleção/sugestão de Jogadores, temporizadores persistentes, pausa por visibilidade, Wake Lock opcional, áudio curto, correções e encerramentos antecipados.
+- Testes determinísticos cobrem a contagem 3–2–1, pausa/retomada, cronologia, correção, progressão de Ciclos e a classificação `correct`, `missed`, `skipped` e `ignored`, incluindo o limite exato de quatro segundos.
