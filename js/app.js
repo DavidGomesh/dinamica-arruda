@@ -12,6 +12,12 @@ import {
   continueMimic, correctLatestResult, endMatchEarly, endTurnEarly, interruptTimedMatch,
   recordChallengeResult, reshuffleTimedDeck, resumeTimedMatch, startNewCycle,
 } from "./domain/timed-games.js";
+import {
+  beginMyVote, beginSecretVotingMatch, deleteInterruptedVoting, endSecretVotingMatch,
+  hasVotingInProgress, interruptSecretVotingMatch, isSecretVotingMatch,
+  nextSecretVotingQuestion, recordVote, reshuffleSecretVotingDeck,
+  resumeSecretVotingMatch, revealVotingResult, secretVotingView, startSecretVoting,
+} from "./domain/secret-voting.js";
 
 const store = createStore();
 const app = document.querySelector("#app");
@@ -20,6 +26,7 @@ let pendingRestore = null;
 let deferredInstallPrompt = null;
 let wakeLock = null;
 let lastSoundToken = "";
+let revealedVotingId = null;
 
 const COLORS = [
   "#facc15", "#fb923c", "#fb7185", "#e879f9", "#c084fc", "#8b5cf6", "#6366f1",
@@ -68,9 +75,10 @@ function navigate(route) {
 }
 
 function homeView(state) {
+  const interruptedVoting = hasVotingInProgress(state);
   const resume = state.activeMatch ? `<div class="resume">
     <div><strong>Partida interrompida</strong><p>${GAME_LABELS[state.activeMatch.game] || state.activeMatch.game} · ${state.activeMatch.playerIds.length} Jogadores</p></div>
-    <div class="actions"><a class="button" href="#game-${state.activeMatch.game}">Continuar partida</a><button class="danger" data-action="discard-match">Descartar partida</button></div>
+    <div class="actions"><a class="button" href="#game-${state.activeMatch.game}">Continuar partida</a><button class="danger" data-action="discard-match">${interruptedVoting ? "Excluir Votação" : "Descartar partida"}</button></div>
   </div>` : "";
   return page("Bora brincar?", "Diversão sem enrolação", `${resume}
     <p class="lede">Escolha uma brincadeira, junte a turma e passe o aparelho. Depois do primeiro acesso, funciona até sem internet.</p>
@@ -205,7 +213,58 @@ function timerMarkup(state) {
   return `<div class="game-timer ${view.tense ? "tense" : ""} ${view.finalSeconds ? "final" : ""}"${tensionStyle} role="timer" aria-label="${view.seconds} segundos restantes"><span>${view.seconds}</span><small>segundos</small></div>`;
 }
 
+function votingPlayerCard(state, playerId, content = "") {
+  const player = state.players.find((candidate) => candidate.id === playerId);
+  return `<div class="voting-player"><span class="player-badge" style="background:${player?.color || "#fff"};color:${player?.textColor || "#111"}">${iconFor(player?.icon)}</span><strong>${escapeHtml(playerName(state, playerId))}</strong>${content}</div>`;
+}
+
+function secretVotingGameView(state) {
+  const game = "quemMaisProvavel";
+  const active = state.activeMatch;
+  if (active && active.game !== game) {
+    return page(GAME_LABELS[game], "Já existe uma Partida", `<div class="callout"><p>Continue ou descarte a Partida de ${escapeHtml(GAME_LABELS[active.game])} antes de começar outra.</p><a class="button" href="#game-${active.game}">Continuar partida</a></div>`, '<a class="button secondary" href="#home">← Início</a>');
+  }
+  if (!active) {
+    const players = state.players.filter((player) => !player.archived);
+    const choices = players.map((player) => `<label class="player-choice"><input type="checkbox" name="playerIds" value="${escapeHtml(player.id)}"><span class="player-badge" style="background:${player.color};color:${player.textColor}">${iconFor(player.icon)}</span><strong>${escapeHtml(player.name)}</strong></label>`).join("");
+    return page(GAME_LABELS[game], "Escolha todos os Jogadores", players.length
+      ? `<form id="secret-voting-form"><div class="player-choice-grid">${choices}</div><button type="submit">Iniciar Partida</button></form>`
+      : '<div class="empty"><p>Cadastre pelo menos um Jogador para começar.</p><a class="button" href="#players">Cadastrar Jogadores</a></div>', '<a class="button secondary" href="#home">← Início</a>');
+  }
+
+  const secret = active.secretVoting;
+  const safeView = secretVotingView(state, { includeIndividualVotes: revealedVotingId === secret.voting?.id });
+  if (active.state === "interrupted") {
+    const canDelete = ["handoff", "ballot"].includes(secret.phase);
+    return page(GAME_LABELS[game], "Partida interrompida", `<div class="neutral-screen"><span aria-hidden="true">🔒</span><h2>O progresso está guardado</h2><p>Continue exatamente de onde parou.</p></div><div class="actions"><button data-action="resume-secret">Continuar</button>${canDelete ? '<button class="danger" data-action="delete-voting">Excluir esta Votação</button>' : ""}<button class="danger" data-action="end-secret-match">Encerrar partida</button></div>`, '<a class="button secondary" href="#home">← Início</a>');
+  }
+  if (secret.phase === "question") {
+    return page("Pergunta", `${safeView.completedQuestionCount} concluída${safeView.completedQuestionCount === 1 ? "" : "s"}`, `<div class="question-card"><span>Quem é Mais Provável?</span><strong>${escapeHtml(secret.question.text)}</strong></div><p class="lede">Leia para o grupo. Depois, passe o aparelho para cada Jogador votar em segredo.</p><div class="actions"><button data-action="start-secret-voting">Começar votação</button><button class="danger" data-action="end-secret-match">Encerrar partida</button></div>`, '<button class="secondary" data-action="leave-secret">← Início</button>');
+  }
+  if (secret.phase === "handoff") {
+    return page("Passe o aparelho", "Tela neutra", `<div class="neutral-screen"><span aria-hidden="true">🔒</span>${votingPlayerCard(state, secret.currentVoterId, "<p>Só toque quando estiver com o aparelho.</p>")}<button data-action="begin-my-vote">Começar meu voto</button></div>`, '<div class="actions"><button class="secondary" data-action="leave-secret">← Sair</button><button class="danger" data-action="end-secret-match">Encerrar partida</button></div>');
+  }
+  if (secret.phase === "ballot") {
+    const options = active.playerIds.map((playerId) => `<label class="vote-choice"><input type="radio" name="chosenPlayerId" value="${escapeHtml(playerId)}" required>${votingPlayerCard(state, playerId)}</label>`).join("");
+    return page(secret.question.text, `Voto de ${escapeHtml(playerName(state, secret.currentVoterId))}`, `<form id="vote-form"><fieldset><legend>Escolha exatamente um Jogador</legend><div class="vote-grid">${options}</div></fieldset><button type="submit">Confirmar meu Voto</button></form>`, '<div class="actions"><button class="secondary" data-action="leave-secret">← Sair</button><button class="danger" data-action="end-secret-match">Encerrar partida</button></div>');
+  }
+  if (secret.phase === "voting-complete") {
+    return page("Votação concluída", "Todos votaram", '<div class="neutral-screen"><span aria-hidden="true">✓</span><p>Nenhum resultado foi exibido ainda.</p><button data-action="reveal-voting-result">Exibir resultado</button></div>');
+  }
+  if (secret.phase === "deck-exhausted") {
+    return page("O baralho acabou", GAME_LABELS[game], '<p class="lede">Todas as Perguntas ativas já apareceram. Embaralhe novamente para continuar.</p><button data-action="reshuffle-secret">Embaralhar novamente</button>', '<button class="secondary" data-action="leave-secret">← Sair</button>');
+  }
+
+  const totals = active.playerIds.map((playerId) => `<li class="result-row">${votingPlayerCard(state, playerId)}<strong>${safeView.totals[playerId]} Voto${safeView.totals[playerId] === 1 ? "" : "s"}</strong></li>`).join("");
+  const winners = safeView.winnerIds.map((id) => escapeHtml(playerName(state, id))).join(" e ");
+  const individual = safeView.individualVotes
+    ? `<div class="individual-votes"><h2>Votos individuais</h2><ul>${safeView.individualVotes.map((vote) => `<li>${escapeHtml(playerName(state, vote.voterId))} votou em ${escapeHtml(playerName(state, vote.chosenPlayerId))}</li>`).join("")}</ul></div>`
+    : '<button class="secondary" data-action="reveal-individual-votes">Exibir votos individuais</button>';
+  return page("Resultado", `${safeView.completedQuestionCount} Pergunta${safeView.completedQuestionCount === 1 ? "" : "s"} concluída${safeView.completedQuestionCount === 1 ? "" : "s"}`, `<div class="winner-card"><span>${safeView.winnerIds.length > 1 ? "Empate!" : "Mais votado"}</span><strong>${winners}</strong></div><ul class="voting-results">${totals}</ul>${individual}<div class="actions"><button data-action="next-secret-question">Próxima pergunta</button><button class="secondary" data-action="end-secret-match">Encerrar partida</button></div>`);
+}
+
 function gameView(state, game) {
+  if (game === "quemMaisProvavel") return secretVotingGameView(state);
   if (!["mimica", "palavraNaTesta"].includes(game)) {
     return page(GAME_LABELS[game] || "Brincadeira", "Em breve", '<p class="empty">Este jogo será conectado em outro ticket.</p>', '<a class="button secondary" href="#home">← Início</a>');
   }
@@ -311,6 +370,13 @@ app.addEventListener("submit", (event) => {
       const playerIds = [...event.target.querySelectorAll('[name="playerIds"]:checked')].map((input) => input.value);
       store.update((state) => beginTimedMatch(state, { game: event.target.dataset.game, playerIds }));
       render(); playSound("start", store.load());
+    } else if (formId === "secret-voting-form") {
+      const playerIds = [...event.target.querySelectorAll('[name="playerIds"]:checked')].map((input) => input.value);
+      store.update((state) => beginSecretVotingMatch(state, { playerIds }));
+      revealedVotingId = null; render();
+    } else if (formId === "vote-form") {
+      store.update((state) => recordVote(state, values.chosenPlayerId));
+      render();
     } else if (event.target.id === "content-filter") {
       location.hash = `#content?game=${values.game}`;
     }
@@ -335,6 +401,18 @@ app.addEventListener("change", (event) => {
 });
 
 app.addEventListener("click", (event) => {
+  const navigation = event.target.closest('a[href^="#"]');
+  const current = store.load();
+  if (navigation && isSecretVotingMatch(current)
+    && current.activeMatch.state === "in-progress"
+    && navigation.hash !== "#game-quemMaisProvavel") {
+    event.preventDefault();
+    if (confirm("Sair desta Partida? O ponto exato e os Votos já feitos ficarão salvos.")) {
+      store.update((state) => interruptSecretVotingMatch(state, { reason: "manual" }));
+      navigate(navigation.hash);
+    }
+    return;
+  }
   const button = event.target.closest("[data-action]");
   if (!button) return;
   const { action, id } = button.dataset;
@@ -347,8 +425,15 @@ app.addEventListener("click", (event) => {
       store.update((state) => updatePlayer(state, id, { archived: false })); render();
     } else if (action === "delete-content" && confirm("Excluir este conteúdo personalizado?")) {
       store.update((state) => deleteCustomContent(state, id)); render();
-    } else if (action === "discard-match" && confirm("Descartar a Partida interrompida? O progresso dela será perdido.")) {
-      store.update((state) => ({ ...state, activeMatch: null })); render();
+    } else if (action === "discard-match") {
+      const state = store.load();
+      const isVoting = hasVotingInProgress(state);
+      if (isVoting && confirm("Excluir esta Votação interrompida? Perguntas já concluídas serão preservadas.")) {
+        store.update((currentState) => deleteInterruptedVoting(currentState));
+        navigate("#game-quemMaisProvavel");
+      } else if (!isVoting && confirm("Descartar a Partida interrompida? O progresso dela será perdido.")) {
+        store.update((currentState) => ({ ...currentState, activeMatch: null })); render();
+      }
     } else if (action === "copy-backup") {
       const output = document.querySelector("#backup-output");
       navigator.clipboard?.writeText(output.value).then(() => showToast("Backup copiado."));
@@ -391,6 +476,33 @@ app.addEventListener("click", (event) => {
       store.update((state) => continueMimic(state, { nowMs: Date.now() })); render();
     } else if (action === "complete-turn") {
       store.update((state) => completeTurnSummary(state)); render();
+    } else if (action === "start-secret-voting") {
+      store.update((state) => startSecretVoting(state)); render();
+    } else if (action === "begin-my-vote") {
+      store.update((state) => beginMyVote(state)); render();
+    } else if (action === "reveal-voting-result") {
+      store.update((state) => revealVotingResult(state)); render();
+    } else if (action === "reveal-individual-votes"
+      && confirm("Revelar quem votou em quem? Todos perto do aparelho poderão ver.")) {
+      revealedVotingId = store.load().activeMatch.secretVoting.voting.id; render();
+    } else if (action === "next-secret-question") {
+      revealedVotingId = null;
+      store.update((state) => nextSecretVotingQuestion(state)); render();
+    } else if (action === "resume-secret") {
+      store.update((state) => resumeSecretVotingMatch(state, { reason: "manual" })); render();
+    } else if (action === "delete-voting"
+      && confirm("Excluir esta Votação? Os Votos dela não entrarão nas estatísticas.")) {
+      store.update((state) => deleteInterruptedVoting(state)); render();
+    } else if (action === "leave-secret"
+      && confirm("Sair desta Partida? O ponto exato ficará salvo para continuar depois.")) {
+      store.update((state) => interruptSecretVotingMatch(state, { reason: "manual" }));
+      navigate("#home");
+    } else if (action === "end-secret-match"
+      && confirm("Encerrar esta Partida? Os Votos já feitos serão preservados.")) {
+      store.update((state) => endSecretVotingMatch(state));
+      revealedVotingId = null; navigate("#history");
+    } else if (action === "reshuffle-secret") {
+      store.update((state) => reshuffleSecretVotingDeck(state)); render();
     }
   });
 });
@@ -444,6 +556,8 @@ window.addEventListener("beforeunload", () => {
   const state = store.load();
   if (state.activeMatch?.timed && state.activeMatch.state === "in-progress") {
     store.update((current) => interruptTimedMatch(current, { nowMs: Date.now(), reason: "browser-closed" }));
+  } else if (isSecretVotingMatch(state) && state.activeMatch.state === "in-progress") {
+    store.update((current) => interruptSecretVotingMatch(current, { reason: "browser-closed" }));
   }
 });
 window.addEventListener("beforeinstallprompt", (event) => {
@@ -467,6 +581,8 @@ if (restored.activeMatch?.timed && restored.activeMatch.state === "in-progress")
     nowMs: state.activeMatch.timed.clock?.runningSinceMs ?? Date.now(),
     reason: "browser-restored",
   }));
+} else if (isSecretVotingMatch(restored) && restored.activeMatch.state === "in-progress") {
+  store.update((state) => interruptSecretVotingMatch(state, { reason: "browser-restored" }));
 }
 
 window.setInterval(() => {

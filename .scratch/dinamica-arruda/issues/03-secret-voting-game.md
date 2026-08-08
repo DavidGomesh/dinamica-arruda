@@ -30,3 +30,11 @@ Implementar Quem é Mais Provável com votação secreta no mesmo aparelho, conf
 ## Dependências
 
 - `01-foundation-pwa-and-data.md`
+
+## Comments
+
+- Implementação concluída em 2026-08-08 com seleção de Jogadores, Perguntas sem repetição, passagem neutra do aparelho, um Voto por Jogador e tela intermediária antes do resultado.
+- A Partida persiste cada Voto e sua cronologia incrementalmente, retoma do próximo Jogador e permite excluir somente a Votação interrompida sem remover Perguntas já concluídas.
+- Resultados agregados cobrem vencedor e empates; Votos individuais permanecem ocultos e exigem confirmação explícita a cada revelação.
+- Testes automatizados cobrem as costuras acordadas de domínio, projeção de privacidade e persistência. A suíte completa terminou com 35 testes aprovados, e o fluxo mobile foi validado no navegador local.
+- A revisão em dois eixos foi aplicada; os achados sobre vocabulário, reconhecimento de Votação em andamento, cronologia do início e encerramento direto foram corrigidos. A segunda passada não encontrou achados bloqueantes de padrões ou especificação.

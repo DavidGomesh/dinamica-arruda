@@ -18,7 +18,7 @@ const EVENT_TYPES = new Set([
   "cycle-started", "cycle-finished", "turn-started", "turn-finished",
   "challenge-presented", "challenge-finished", "question-presented",
   "voting-started", "voting-interrupted", "voting-resumed", "voting-finished",
-  "vote-recorded", "result-corrected",
+  "voting-deleted", "vote-recorded", "result-corrected",
 ]);
 
 function appendEvent(state, type, payload = {}, dependencies = {}) {
@@ -104,6 +104,7 @@ export const gameRecords = Object.freeze({
   interruptVoting: childEvent("voting-interrupted", "voting"),
   resumeVoting: childEvent("voting-resumed", "voting"),
   finishVoting: childEvent("voting-finished", "voting"),
+  deleteVoting: childEvent("voting-deleted", "voting"),
   recordVote: childEvent("vote-recorded", "vote"),
   correctResult: childEvent("result-corrected", "result"),
 });
