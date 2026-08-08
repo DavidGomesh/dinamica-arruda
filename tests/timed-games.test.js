@@ -8,6 +8,8 @@ import {
   beginTurn,
   correctLatestResult,
   completeTimedMatch,
+  completeTurnSummary,
+  continueMimic,
   endMatchEarly,
   interruptTimedMatch,
   pauseClock,
@@ -68,6 +70,35 @@ test("interrupção e retomada ficam na cronologia sem consumir o tempo oculto",
   ]);
 });
 
+test("restauração pausa no último instante persistido e não debita tempo com o app fechado", () => {
+  let state = beginTimedMatch(baseState(), { game: "mimica", playerIds: ["p1"] }, {
+    clock: clock(), createId: ids("match", "start", "cycle", "cycle-event"), random: () => 0,
+  });
+  state = beginTurn(state, "p1", { nowMs: 0, clock: clock(), createId: ids("turn", "turn-event") });
+  state = advanceClock(state, 1_000, { clock: clock() });
+  const persistedAt = state.activeMatch.timed.clock.runningSinceMs;
+  state = interruptTimedMatch(state, { nowMs: persistedAt, clock: clock(), createId: ids("interrupt"), reason: "browser-restored" });
+  assert.equal(state.activeMatch.timed.clock.countdownRemainingMs, 2_000);
+  assert.equal(state.activeMatch.timed.clock.remainingMs, 40_000);
+});
+
+test("repetir manualmente um Jogador não encerra o Ciclo antes de todos jogarem", () => {
+  let state = baseState();
+  state.settings.games.mimica.challengesPerTurn = 1;
+  state = beginTimedMatch(state, { game: "mimica", playerIds: ["p1", "p2"] }, {
+    clock: clock(), createId: ids("match", "start", "cycle", "cycle-event"), random: () => 0,
+  });
+  for (let turn = 0; turn < 2; turn += 1) {
+    state = beginTurn(state, "p1", { nowMs: turn * 10_000, clock: clock(), createId: ids(`turn-${turn}`, `turn-event-${turn}`) });
+    state = advanceClock(state, turn * 10_000 + 3_000, { clock: clock(), createId: ids(`challenge-${turn}`, `present-${turn}`) });
+    state = recordChallengeResult(state, "correct", { nowMs: turn * 10_000 + 4_000, clock: clock(), createId: ids(`result-${turn}`) });
+    state = completeTurnSummary(state, { clock: clock(), createId: ids(`turn-finish-${turn}`) });
+  }
+  assert.equal(state.activeMatch.timed.phase, "choose-player");
+  assert.deepEqual(state.activeMatch.timed.playedPlayerIds, ["p1"]);
+  assert.equal(state.activeMatch.timed.suggestedPlayerId, "p2");
+});
+
 test("Mímica sugere quem não jogou, conclui Ciclo e permite corrigir o resultado mais recente", () => {
   let state = beginTimedMatch(baseState(), { game: "mimica", playerIds: ["p1", "p2"] }, {
     clock: clock(), createId: ids("match", "event-start", "cycle", "event-cycle"), random: () => 0,
@@ -82,9 +113,13 @@ test("Mímica sugere quem não jogou, conclui Ciclo e permite corrigir o resulta
 
   // Encerra os outros dois Desafios configurados.
   for (let index = 0; index < 2; index += 1) {
+    state = continueMimic(state, { nowMs: 5_000 + index * 5_000 });
     state = advanceClock(state, 8_000 + index * 5_000, { clock: clock(), createId: ids(`challenge-${index + 2}`, `present-${index}`) });
     state = recordChallengeResult(state, "missed", { nowMs: 9_000 + index * 5_000, clock: clock(), createId: ids(`result-${index}`) });
   }
+  assert.equal(state.activeMatch.timed.phase, "turn-summary");
+  state = correctLatestResult(state, "correct", { clock: clock(), createId: ids("last-correction") });
+  state = completeTurnSummary(state, { clock: clock(), createId: ids("finish-turn") });
   assert.equal(state.activeMatch.timed.phase, "choose-player");
   assert.equal(state.activeMatch.timed.suggestedPlayerId, "p2");
 
@@ -106,6 +141,7 @@ test("Palavra na Testa distingue skipped, missed e ignored no limite de quatro s
   state = advanceClock(state, 93_000, { clock: clock(), createId: ids("finish-turn", "finish-cycle") });
   const finishes = state.activeMatch.events.filter((event) => event.type === "challenge-finished");
   assert.equal(finishes.at(-1).result, "missed");
+  state = completeTurnSummary(state, { clock: clock(), createId: ids("finish-turn", "finish-cycle") });
 
   // Novo Ciclo: o último Desafio aparece com exatamente quatro segundos e é ignorado.
   state = startNewCycle(state, { clock: clock(), createId: ids("cycle-2", "cycle-event") });
@@ -115,6 +151,7 @@ test("Palavra na Testa distingue skipped, missed e ignored no limite de quatro s
   state = advanceClock(state, 193_000, { clock: clock(), createId: ids("turn-finish-2", "cycle-finish-2") });
   const secondFinishes = state.activeMatch.events.filter((event) => event.type === "challenge-finished");
   assert.equal(secondFinishes.at(-1).result, "ignored");
+  state = completeTurnSummary(state, { clock: clock(), createId: ids("turn-finish-2", "cycle-finish-2") });
   state = completeTimedMatch(state, { clock: clock(), createId: ids("match-finished") });
   assert.equal(state.matches.at(-1).state, "completed");
 });

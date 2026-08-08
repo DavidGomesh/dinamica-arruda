@@ -78,16 +78,16 @@ fieldset { border: 0; padding: 0; margin: 0 0 1rem; }
 .toast.show { transform: translate(-50%, 0); }
 .empty { text-align: center; padding: 2rem; border: 2px dashed #a89ead; border-radius: 15px; color: var(--muted); }
 .status { display: inline-block; border: 2px solid currentColor; border-radius: 99px; padding: .15rem .5rem; font-size: .72rem; font-weight: 900; }
-.participant-grid, .player-turn-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .8rem; margin: 1rem 0; }
-.participant-choice { display: flex; align-items: center; gap: .65rem; padding: .8rem; background: white; border: 3px solid var(--ink); border-radius: 15px; cursor: pointer; }
-.participant-choice input { width: 24px; min-height: 24px; flex: none; }
+.player-choice-grid, .player-turn-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .8rem; margin: 1rem 0; }
+.player-choice { display: flex; align-items: center; gap: .65rem; padding: .8rem; background: white; border: 3px solid var(--ink); border-radius: 15px; cursor: pointer; }
+.player-choice input { width: 24px; min-height: 24px; flex: none; }
 .player-turn { min-height: 86px; flex-direction: column; }
 .player-turn.suggested { background: #bbf7d0; }
 .player-turn small { display: block; font-size: .72rem; }
 .countdown, .game-timer { min-height: 180px; display: grid; place-items: center; align-content: center; text-align: center; }
 .countdown span, .game-timer span { font-size: clamp(6rem, 25vw, 12rem); font-weight: 1000; line-height: .8; font-variant-numeric: tabular-nums; }
 .countdown small, .game-timer small { margin-top: 1rem; font-weight: 950; text-transform: uppercase; letter-spacing: .12em; }
-.game-timer.tense { color: #c2410c; animation: timer-pulse .75s ease-in-out infinite alternate; }
+.game-timer.tense { color: color-mix(in srgb, #c2410c calc(var(--tension) * 100%), var(--ink)); filter: saturate(calc(1 + var(--tension))); animation: timer-pulse var(--pulse-speed) ease-in-out infinite alternate; }
 .game-timer.final { color: #b91c1c; animation-duration: .3s; }
 .challenge-card { min-height: 180px; display: grid; place-items: center; align-content: center; text-align: center; background: white; border: 4px solid var(--ink); border-radius: 22px; padding: 1.5rem; box-shadow: 0 7px 0 var(--ink); }
 .challenge-card p { color: var(--muted); text-transform: uppercase; letter-spacing: .12em; font-weight: 900; }
@@ -102,7 +102,21 @@ fieldset { border: 0; padding: 0; margin: 0 0 1rem; }
 .turn-summary { padding: 1rem; background: #dcfce7; border: 3px solid var(--ink); border-radius: 15px; margin-bottom: 1rem; }
 .turn-summary p { margin: .35rem 0 0; }
 .correction { margin: 1rem 0; padding: .8rem; border: 2px dashed var(--ink); border-radius: 12px; }
-@keyframes timer-pulse { from { transform: scale(1); } to { transform: scale(1.06); } }
+.result-reveal { min-height: 220px; display: grid; place-items: center; align-content: center; gap: .5rem; border: 4px solid var(--ink); border-radius: 22px; background: white; }
+.result-reveal.correct { background: #bbf7d0; }.result-reveal.missed, .result-reveal.skipped { background: #fecaca; }.result-reveal.ignored { background: #e5e7eb; }
+.result-reveal span { font-size: 5rem; line-height: 1; }.result-reveal strong { font-size: 2rem; }
+@keyframes timer-pulse { from { transform: scale(1); } to { transform: scale(var(--pulse-scale, 1.06)); } }
+
+.headband-active { overflow: hidden; }
+.headband-active .app-header, .headband-active .bottom-nav, .headband-active .page-head, .headband-active .correction { display: none; }
+.headband-active main { max-width: none; padding: 0; }
+.headband-active .paper { min-height: 100dvh; padding: 0; border: 0; border-radius: 0; box-shadow: none; background: transparent; }
+.headband-active .headband-zones { position: fixed; z-index: 15; inset: 0; margin: 0; gap: 0; grid-template-columns: 1fr 1fr; }
+.headband-active .headband-zones button { min-height: 100dvh; border-radius: 0; border-width: 0 2px; box-shadow: none; padding-top: 55vh; }
+.headband-active .challenge-card { position: fixed; z-index: 17; top: 46%; left: 50%; width: min(82vw, 680px); min-height: 160px; transform: translate(-50%, -50%); pointer-events: none; }
+.headband-active .game-timer { position: fixed; z-index: 18; top: 1rem; left: 50%; min-height: 0; transform: translateX(-50%); pointer-events: none; background: var(--paper); border: 3px solid var(--ink); border-radius: 16px; padding: .65rem 1rem; }
+.headband-active .game-timer span { font-size: clamp(3rem, 12vw, 6rem); }
+.headband-active .game-controls { position: fixed; z-index: 20; bottom: max(1rem, env(safe-area-inset-bottom)); left: 50%; width: min(94vw, 680px); transform: translateX(-50%); margin: 0; justify-content: center; }
 
 @media (min-width: 760px) {
   main { padding-bottom: 3rem; }

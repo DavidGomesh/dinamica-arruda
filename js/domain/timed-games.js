@@ -97,8 +97,8 @@ function finishCurrentTurn(state, reason, dependencies = {}) {
     playerId: timed.currentTurn.playerId,
     reason,
   }, dependencies);
-  const playedPlayerIds = [...timed.playedPlayerIds, timed.currentTurn.playerId];
-  if (playedPlayerIds.length === match.playerIds.length) {
+  const playedPlayerIds = [...new Set([...timed.playedPlayerIds, timed.currentTurn.playerId])];
+  if (match.playerIds.every((id) => playedPlayerIds.includes(id))) {
     next = gameRecords.finishCycle(next, { cycleId: timed.cycleId, cycleNumber: timed.cycleNumber }, dependencies);
     return withTimed(next, {
       ...timed,
@@ -150,15 +150,13 @@ function nextAfterResult(state, nowMs, dependencies = {}) {
   const { timed } = match;
   if (match.game === "mimica") {
     if (timed.currentTurn.completedChallenges >= timed.currentTurn.challengeTarget) {
-      return finishCurrentTurn(state, "completed", dependencies);
+      return withTimed(state, { ...timed, phase: "turn-summary", clock: null });
     }
-    return withTimed(state, {
-      ...timed,
-      phase: "countdown",
-      clock: runningClock(durationMs(state, match.game), nowMs),
-    });
+    const lastResult = [...match.events].reverse().find((event) => event.type === "challenge-finished"
+      && event.turnId === timed.currentTurn.id)?.result;
+    return withTimed(state, { ...timed, phase: "challenge-result", clock: null, lastResult });
   }
-  if (timed.clock.remainingMs <= 0) return finishCurrentTurn(state, "time-ended", dependencies);
+  if (timed.clock.remainingMs <= 0) return withTimed(state, { ...timed, phase: "turn-summary", clock: null });
   return presentNextChallenge(state, dependencies);
 }
 
@@ -230,13 +228,22 @@ export function pauseClock(state, nowMs, dependencies = {}) {
   const match = requireTimed(state);
   if (!match.timed.clock || match.timed.clock.status === "paused") return state;
   const clock = { ...snapshot(match.timed.clock, nowMs), status: "paused", runningSinceMs: null };
-  return withTimed(state, { ...match.timed, clock, pausedAt: dependencies.clock ? dependencies.clock.now().toISOString() : new Date().toISOString() });
+  return withTimed(state, {
+    ...match.timed,
+    clock,
+    pausedAt: dependencies.clock ? dependencies.clock.now().toISOString() : new Date().toISOString(),
+    pauseReason: dependencies.reason || "paused",
+  });
 }
 
 export function resumeClock(state, nowMs) {
   const match = requireTimed(state);
   if (!match.timed.clock || match.timed.clock.status !== "paused") return state;
-  return withTimed(state, { ...match.timed, clock: { ...match.timed.clock, status: "running", runningSinceMs: nowMs } });
+  return withTimed(state, {
+    ...match.timed,
+    pauseReason: null,
+    clock: { ...match.timed.clock, status: "running", runningSinceMs: nowMs },
+  });
 }
 
 export function interruptTimedMatch(state, dependencies = {}) {
@@ -244,6 +251,7 @@ export function interruptTimedMatch(state, dependencies = {}) {
   const nowMs = dependencies.nowMs ?? Date.now();
   let next = state;
   if (match.timed.clock?.status === "running") next = pauseClock(next, nowMs, dependencies);
+  else next = withTimed(next, { ...next.activeMatch.timed, pauseReason: dependencies.reason || "paused" });
   if (next.activeMatch.state !== "interrupted") next = interruptMatch(next, { reason: dependencies.reason || "paused" }, dependencies);
   return next;
 }
@@ -254,6 +262,7 @@ export function resumeTimedMatch(state, dependencies = {}) {
   let next = state;
   if (match.state === "interrupted") next = resumeMatch(next, { reason: dependencies.reason || "continued" }, dependencies);
   if (next.activeMatch.timed.clock?.status === "paused") next = resumeClock(next, nowMs);
+  else next = withTimed(next, { ...next.activeMatch.timed, pauseReason: null });
   return next;
 }
 
@@ -262,12 +271,15 @@ export function clockView(state, nowMs = Date.now()) {
   const clock = match.timed.clock ? snapshot(match.timed.clock, nowMs) : null;
   if (!clock) return null;
   const tensionThresholdMs = Math.min(clock.durationMs * .25, 10_000);
+  const tension = clock.stage === "active" && clock.remainingMs <= tensionThresholdMs
+    ? Math.min(1, Math.max(0, 1 - (clock.remainingMs / tensionThresholdMs))) : 0;
   return {
     stage: clock.stage,
     countdownNumber: clock.stage === "countdown" ? Math.ceil(clock.countdownRemainingMs / 1_000) : null,
     remainingMs: clock.remainingMs,
     seconds: Math.ceil(clock.remainingMs / 1_000),
-    tense: clock.stage === "active" && clock.remainingMs <= tensionThresholdMs,
+    tense: tension > 0,
+    tension,
     finalSeconds: clock.stage === "active" && clock.remainingMs <= 3_000,
     status: clock.status,
   };
@@ -307,7 +319,7 @@ export function endTurnEarly(state, dependencies = {}) {
   const nowMs = dependencies.nowMs ?? Date.now();
   let next = state;
   if (match.timed.phase === "challenge") next = finishVisibleChallenge(next, "ignored", nowMs, dependencies);
-  return finishCurrentTurn(next, "ended-early", dependencies);
+  return finishCurrentTurn(next, match.timed.phase === "turn-summary" ? "completed" : "ended-early", dependencies);
 }
 
 export function endMatchEarly(state, dependencies = {}) {
@@ -347,6 +359,25 @@ export function startNewCycle(state, dependencies = {}) {
     currentChallenge: null,
     clock: null,
   });
+}
+
+export function continueMimic(state, dependencies = {}) {
+  const match = requireTimed(state);
+  if (match.game !== "mimica" || match.timed.phase !== "challenge-result") {
+    throw new Error("Não há resultado de Mímica aguardando continuação.");
+  }
+  return withTimed(state, {
+    ...match.timed,
+    phase: "countdown",
+    lastResult: null,
+    clock: runningClock(durationMs(state, match.game), dependencies.nowMs ?? Date.now()),
+  });
+}
+
+export function completeTurnSummary(state, dependencies = {}) {
+  const match = requireTimed(state);
+  if (match.timed.phase !== "turn-summary") throw new Error("O resumo do Turno ainda não está disponível.");
+  return finishCurrentTurn(state, "completed", dependencies);
 }
 
 export function reshuffleTimedDeck(state, dependencies = {}) {

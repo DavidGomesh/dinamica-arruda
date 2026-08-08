@@ -36,3 +36,4 @@ Implementar Mímica e Palavra na Testa sobre a fundação persistente e responsi
 
 - Implementação concluída em 2026-08-08 com os fluxos completos de Mímica e Palavra na Testa, Ciclos livres, seleção/sugestão de Jogadores, temporizadores persistentes, pausa por visibilidade, Wake Lock opcional, áudio curto, correções e encerramentos antecipados.
 - Testes determinísticos cobrem a contagem 3–2–1, pausa/retomada, cronologia, correção, progressão de Ciclos e a classificação `correct`, `missed`, `skipped` e `ignored`, incluindo o limite exato de quatro segundos.
+- A revisão em dois eixos corrigiu repetição manual de Jogador no Ciclo, restauração sem consumo de tempo, feedback visual/sonoro no timeout, correção no resumo do Turno, tensão progressiva e zonas de tela inteira de Palavra na Testa.

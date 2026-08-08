@@ -8,8 +8,8 @@ import { BUILT_IN_CONTENT } from "./data/content.js";
 import { parseBackup, previewBackup, serializeBackup } from "./domain/backup.js";
 import { formatTimestamp } from "./domain/time.js";
 import {
-  advanceClock, beginTimedMatch, beginTurn, clockView, completeTimedMatch,
-  correctLatestResult, endMatchEarly, endTurnEarly, interruptTimedMatch,
+  advanceClock, beginTimedMatch, beginTurn, clockView, completeTimedMatch, completeTurnSummary,
+  continueMimic, correctLatestResult, endMatchEarly, endTurnEarly, interruptTimedMatch,
   recordChallengeResult, reshuffleTimedDeck, resumeTimedMatch, startNewCycle,
 } from "./domain/timed-games.js";
 
@@ -179,11 +179,24 @@ function lastTurnSummary(state, match) {
   return `<div class="turn-summary"><strong>Resumo do Turno de ${escapeHtml(playerName(state, finished.playerId))}</strong><p>${Object.entries(totals).map(([result, count]) => `${count} ${resultLabel(result).toLowerCase()}`).join(" · ") || "Nenhum resultado"}</p></div>`;
 }
 
+function currentTurnSummary(state, match) {
+  const turn = match.timed.currentTurn;
+  const results = turnResults(match, turn.id);
+  const totals = results.reduce((all, result) => ({ ...all, [result.result]: (all[result.result] || 0) + 1 }), {});
+  return `<div class="turn-summary"><strong>Resumo do Turno de ${escapeHtml(playerName(state, turn.playerId))}</strong><p>${Object.entries(totals).map(([result, count]) => `${count} ${resultLabel(result).toLowerCase()}`).join(" · ") || "Nenhum resultado"}</p></div>`;
+}
+
+function correctionMarkup(game) {
+  const choices = game === "mimica" ? ["correct", "missed", "ignored"] : ["correct", "skipped", "missed", "ignored"];
+  return `<details class="correction"><summary>Corrigir resultado mais recente</summary><div class="actions">${choices.map((result) => `<button class="ghost" data-action="correct-result" data-result="${result}">${resultLabel(result)}</button>`).join("")}</div></details>`;
+}
+
 function timerMarkup(state) {
   const view = clockView(state, Date.now());
   if (!view) return "";
   if (view.stage === "countdown") return `<div class="countdown" role="timer" aria-live="assertive"><span>${view.countdownNumber}</span><small>Prepare-se!</small></div>`;
-  return `<div class="game-timer ${view.tense ? "tense" : ""} ${view.finalSeconds ? "final" : ""}" role="timer" aria-label="${view.seconds} segundos restantes"><span>${view.seconds}</span><small>segundos</small></div>`;
+  const tensionStyle = view.tense ? ` style="--tension:${view.tension.toFixed(3)};--pulse-speed:${(1 - view.tension * .7).toFixed(3)}s;--pulse-scale:${(1 + view.tension * .08).toFixed(3)}"` : "";
+  return `<div class="game-timer ${view.tense ? "tense" : ""} ${view.finalSeconds ? "final" : ""}"${tensionStyle} role="timer" aria-label="${view.seconds} segundos restantes"><span>${view.seconds}</span><small>segundos</small></div>`;
 }
 
 function gameView(state, game) {
@@ -196,9 +209,9 @@ function gameView(state, game) {
   }
   if (!active) {
     const players = state.players.filter((player) => !player.archived);
-    const choices = players.map((player) => `<label class="participant-choice"><input type="checkbox" name="playerIds" value="${escapeHtml(player.id)}"><span class="player-badge" style="background:${player.color};color:${player.textColor}">${iconFor(player.icon)}</span><strong>${escapeHtml(player.name)}</strong></label>`).join("");
+    const choices = players.map((player) => `<label class="player-choice"><input type="checkbox" name="playerIds" value="${escapeHtml(player.id)}"><span class="player-badge" style="background:${player.color};color:${player.textColor}">${iconFor(player.icon)}</span><strong>${escapeHtml(player.name)}</strong></label>`).join("");
     return page(GAME_LABELS[game], "Escolha os Jogadores", players.length
-      ? `<form id="timed-game-form" data-game="${game}"><div class="participant-grid">${choices}</div><button type="submit">Iniciar Partida</button></form>`
+      ? `<form id="timed-game-form" data-game="${game}"><div class="player-choice-grid">${choices}</div><button type="submit">Iniciar Partida</button></form>`
       : '<div class="empty"><p>Cadastre pelo menos um Jogador para começar.</p><a class="button" href="#players">Cadastrar Jogadores</a></div>', '<a class="button secondary" href="#home">← Início</a>');
   }
 
@@ -225,8 +238,16 @@ function gameView(state, game) {
     return page(playerName(state, timed.currentTurn.playerId), `Ciclo ${timed.cycleNumber} · prepare o Turno`, `${timerMarkup(state)}<div class="actions game-controls"><button class="secondary" data-action="pause-timed">Pausar</button><button class="danger" data-action="end-turn">Encerrar Turno</button><button class="danger" data-action="end-match">Encerrar partida</button></div>`, '<a class="button secondary" href="#home">← Início</a>');
   }
 
+  if (timed.phase === "challenge-result") {
+    const result = turnResults(active, timed.currentTurn.id).at(-1)?.result || timed.lastResult;
+    return page(resultLabel(result), "Resultado do Desafio", `<div class="result-reveal ${result}"><span>${result === "correct" ? "✓" : result === "ignored" ? "—" : "✕"}</span><strong>${resultLabel(result)}</strong></div>${correctionMarkup(game)}<div class="actions"><button data-action="continue-mimic">Próximo Desafio</button><button class="danger" data-action="end-turn">Encerrar Turno</button><button class="danger" data-action="end-match">Encerrar partida</button></div>`, '<a class="button secondary" href="#home">← Início</a>');
+  }
+  if (timed.phase === "turn-summary") {
+    return page("Turno concluído", GAME_LABELS[game], `${currentTurnSummary(state, active)}${correctionMarkup(game)}<div class="actions"><button data-action="complete-turn">Escolher próximo Jogador</button><button class="danger" data-action="end-match">Encerrar partida</button></div>`, '<a class="button secondary" href="#home">← Início</a>');
+  }
+
   const correction = active.events.some((event) => event.type === "challenge-finished" && event.turnId === timed.currentTurn.id)
-    ? `<details class="correction"><summary>Corrigir resultado mais recente</summary><div class="actions">${(game === "mimica" ? ["correct", "missed", "ignored"] : ["correct", "skipped", "missed", "ignored"]).map((result) => `<button class="ghost" data-action="correct-result" data-result="${result}">${resultLabel(result)}</button>`).join("")}</div></details>` : "";
+    ? correctionMarkup(game) : "";
   const challenge = `<div class="challenge-card"><p>Desafio</p><strong>${escapeHtml(timed.currentChallenge.content)}</strong></div>`;
   const actions = game === "mimica"
     ? '<div class="result-actions"><button class="correct" data-action="challenge-result" data-result="correct">✓ Acertaram</button><button class="missed" data-action="challenge-result" data-result="missed">✕ Não acertaram</button></div>'
@@ -251,6 +272,8 @@ function render() {
     if (section === route.name) link.setAttribute("aria-current", "page"); else link.removeAttribute("aria-current");
   });
   document.title = `${app.querySelector("h1")?.textContent || "Dinâmica Arruda"} · Dinâmica Arruda`;
+  document.body.classList.toggle("headband-active", route.name === "game-palavraNaTesta"
+    && state.activeMatch?.game === "palavraNaTesta" && state.activeMatch?.timed?.phase === "challenge");
   syncTimedEffects(state);
 }
 
@@ -355,6 +378,10 @@ app.addEventListener("click", (event) => {
       store.update((state) => completeTimedMatch(state)); location.hash = "#history"; playSound("end", store.load());
     } else if (action === "reshuffle") {
       store.update((state) => reshuffleTimedDeck(state, { nowMs: Date.now() })); render();
+    } else if (action === "continue-mimic") {
+      store.update((state) => continueMimic(state, { nowMs: Date.now() })); render();
+    } else if (action === "complete-turn") {
+      store.update((state) => completeTurnSummary(state)); render();
     }
   });
 });
@@ -395,16 +422,18 @@ async function syncTimedEffects(state) {
 window.addEventListener("hashchange", render);
 document.addEventListener("visibilitychange", () => {
   const state = store.load();
-  if (!state.activeMatch?.timed?.clock) return;
+  if (!state.activeMatch?.timed) return;
   safely(() => {
     if (document.hidden) store.update((current) => interruptTimedMatch(current, { nowMs: Date.now(), reason: "background" }));
-    else store.update((current) => resumeTimedMatch(current, { nowMs: Date.now(), reason: "foreground" }));
+    else if (state.activeMatch.timed.pauseReason === "background") {
+      store.update((current) => resumeTimedMatch(current, { nowMs: Date.now(), reason: "foreground" }));
+    }
     render();
   });
 });
 window.addEventListener("beforeunload", () => {
   const state = store.load();
-  if (state.activeMatch?.timed?.clock?.status === "running") {
+  if (state.activeMatch?.timed && state.activeMatch.state === "in-progress") {
     store.update((current) => interruptTimedMatch(current, { nowMs: Date.now(), reason: "browser-closed" }));
   }
 });
@@ -424,14 +453,22 @@ if ("serviceWorker" in navigator) {
 }
 
 const restored = store.load();
-if (restored.activeMatch?.timed?.clock?.status === "running") {
-  store.update((state) => interruptTimedMatch(state, { nowMs: Date.now(), reason: "browser-restored" }));
+if (restored.activeMatch?.timed && restored.activeMatch.state === "in-progress") {
+  store.update((state) => interruptTimedMatch(state, {
+    nowMs: state.activeMatch.timed.clock?.runningSinceMs ?? Date.now(),
+    reason: "browser-restored",
+  }));
 }
 
 window.setInterval(() => {
   const state = store.load();
   if (!state.activeMatch?.timed?.clock || state.activeMatch.timed.clock.status !== "running") return;
-  safely(() => { store.update((current) => advanceClock(current, Date.now())); render(); });
+  safely(() => {
+    const before = clockView(state, Date.now());
+    const next = store.update((current) => advanceClock(current, Date.now()));
+    if (before.stage === "active" && !next.activeMatch?.timed?.clock) playSound("end", next);
+    render();
+  });
 }, 200);
 
 render();
