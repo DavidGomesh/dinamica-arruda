@@ -159,6 +159,22 @@ test("Mímica sugere quem não jogou, conclui Ciclo e permite corrigir o resulta
   assert.equal(state.matches[0].state, "ended-early");
 });
 
+test("correções sucessivas registram o resultado vigente como anterior", () => {
+  let state = beginTimedMatch(baseState(), { game: "mimica", playerIds: ["p1"] }, {
+    clock: clock(), createId: ids("match", "start", "cycle", "cycle-event"), random: () => 0,
+  });
+  state = beginTurn(state, "p1", { nowMs: 0, clock: clock(), createId: ids("turn", "turn-event") });
+  state = advanceClock(state, 3_000, { clock: clock(), createId: ids("challenge", "present") });
+  state = recordChallengeResult(state, "missed", { nowMs: 4_000, clock: clock(), createId: ids("result") });
+  state = correctLatestResult(state, "correct", { clock: clock(), createId: ids("fix-1") });
+  state = correctLatestResult(state, "ignored", { clock: clock(), createId: ids("fix-2") });
+
+  const corrections = state.activeMatch.events.filter((event) => event.type === "result-corrected");
+  assert.deepEqual(corrections.map((event) => [event.previousResult, event.result]), [
+    ["missed", "correct"], ["correct", "ignored"],
+  ]);
+});
+
 test("Palavra na Testa distingue skipped, missed e ignored no limite de quatro segundos", () => {
   let state = beginTimedMatch(baseState(), { game: "palavraNaTesta", playerIds: ["p1"] }, {
     clock: clock(), createId: ids("match", "event-start", "cycle", "event-cycle"), random: () => 0,

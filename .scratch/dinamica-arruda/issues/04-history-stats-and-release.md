@@ -31,3 +31,11 @@ Integrar os três jogos ao histórico e às estatísticas e concluir a qualidade
 
 - `02-timed-games.md`
 - `03-secret-voting-game.md`
+
+## Comments
+
+- Implementação concluída em 2026-08-08 com histórico agrupado por dia, detalhe cronológico por Partida, histórico e estatísticas por Jogador (incluindo arquivados), exclusão com recálculo e privacidade confirmada dos Votos individuais.
+- As listas iniciais foram verificadas com 160 Desafios de Mímica, 200 de Palavra na Testa e 110 Perguntas, todos únicos após normalização.
+- A auditoria no navegador cobriu celular (390×844), desktop (1280×800), ausência de overflow horizontal, foco visível de 4 px, regra de movimento reduzido, restauração com prévia, atualização do cache e reabertura offline após interromper o servidor local. O prompt de instalação ficou disponível e todos os recursos do `APP_SHELL` responderam com HTTP 200 antes do teste offline.
+- A suíte completa terminou com 40 testes aprovados. A revisão em dois eixos corrigiu histórico ausente por Jogador, reexibição de Votos sem nova confirmação, transição incorreta em correções sucessivas e pequenos smells de apresentação/projeção.
+- A legibilidade sob sol foi auditada por contraste e tipografia em viewport, mas não houve validação física em ambiente externo nesta execução.

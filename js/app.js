@@ -7,6 +7,7 @@ import {
 import { BUILT_IN_CONTENT } from "./data/content.js";
 import { parseBackup, previewBackup, serializeBackup } from "./domain/backup.js";
 import { formatTimestamp } from "./domain/time.js";
+import { deleteMatch, historyByDay, matchHistory, playerStatistics } from "./domain/history.js";
 import {
   advanceClock, beginTimedMatch, beginTurn, clockView, completeTimedMatch, completeTurnSummary,
   continueMimic, correctLatestResult, endMatchEarly, endTurnEarly, interruptTimedMatch,
@@ -27,6 +28,7 @@ let deferredInstallPrompt = null;
 let wakeLock = null;
 let lastSoundToken = "";
 let revealedVotingId = null;
+let revealedHistoryMatchId = null;
 
 const COLORS = [
   "#facc15", "#fb923c", "#fb7185", "#e879f9", "#c084fc", "#8b5cf6", "#6366f1",
@@ -42,6 +44,7 @@ const ICONS = [
 const GAME_LABELS = {
   mimica: "Mímica", palavraNaTesta: "Palavra na Testa", quemMaisProvavel: "Quem é Mais Provável",
 };
+const MATCH_STATE_LABELS = { completed: "Concluída", "ended-early": "Encerrada antes do fim" };
 
 function escapeHtml(value = "") {
   return String(value).replace(/[&<>"]/g, (character) => ({
@@ -160,9 +163,77 @@ function backupView(state) {
     <div class="danger-zone"><h2>Apagar todos os dados</h2><p class="muted">Esta ação remove tudo deste navegador.</p><button class="danger" data-action="delete-all">Apagar todos os dados</button></div>`, '<a class="button secondary" href="#home">← Início</a>');
 }
 
-function historyView(state) {
-  const matches = [...state.matches].sort((a, b) => b.startedAt.instant.localeCompare(a.startedAt.instant));
-  return page("Histórico", "Partidas salvas", matches.length ? `<ul class="history-list">${matches.map((match) => `<li class="row-card"><div><strong>${GAME_LABELS[match.game]}</strong><br><span class="muted">${formatTimestamp(match.startedAt)} · ${match.playerIds.length} Jogadores</span></div><span class="status">${escapeHtml(match.state)}</span></li>`).join("")}</ul>` : '<p class="empty">As Partidas concluídas aparecerão aqui.</p>', '<a class="button secondary" href="#home">← Início</a>');
+function durationLabel(durationMs) {
+  if (durationMs === null) return "Em andamento";
+  const minutes = Math.floor(durationMs / 60_000);
+  const seconds = Math.floor((durationMs % 60_000) / 1_000);
+  return minutes ? `${minutes} min ${seconds ? `${seconds} s` : ""}`.trim() : `${seconds} s`;
+}
+
+function dateHeading(date) {
+  const label = new Intl.DateTimeFormat("pt-BR", { dateStyle: "full", timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`));
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+const EVENT_DESCRIPTORS = {
+  "match-created": { label: "Partida criada" }, "match-started": { label: "Partida iniciada" },
+  "match-interrupted": { label: "Partida interrompida" }, "match-resumed": { label: "Partida retomada" },
+  "match-finished": { label: "Partida encerrada" }, "cycle-started": { label: "Ciclo iniciado" },
+  "cycle-finished": { label: "Ciclo encerrado" }, "turn-started": { label: "Turno iniciado", detail: (state, item) => escapeHtml(playerName(state, item.playerId)) },
+  "turn-finished": { label: "Turno encerrado", detail: (state, item) => escapeHtml(playerName(state, item.playerId)) },
+  "challenge-presented": { label: "Desafio apresentado", detail: (_state, item) => escapeHtml(item.content) },
+  "challenge-finished": { label: "Desafio concluído", detail: (_state, item) => `${escapeHtml(item.content)} · ${resultLabel(item.result)}${item.originalResult ? ` (corrigido de ${resultLabel(item.originalResult)})` : ""}` },
+  "question-presented": { label: "Pergunta apresentada", detail: (_state, item) => escapeHtml(item.content) },
+  "voting-started": { label: "Votação iniciada" }, "voting-interrupted": { label: "Votação interrompida" },
+  "voting-resumed": { label: "Votação retomada" }, "voting-finished": { label: "Votação concluída" },
+  "voting-deleted": { label: "Votação excluída" },
+  "vote-recorded": { label: "Voto realizado", detail: (state, item) => item.voterId ? `${escapeHtml(playerName(state, item.voterId))} votou em ${escapeHtml(playerName(state, item.chosenPlayerId))}` : "" },
+  "result-corrected": { label: "Resultado corrigido", detail: (_state, item) => `${resultLabel(item.previousResult)} → ${resultLabel(item.result)}` },
+};
+
+function timelineDetail(state, item) {
+  return EVENT_DESCRIPTORS[item.type]?.detail?.(state, item) || "";
+}
+
+function statisticsMarkup(state) {
+  const cards = playerStatistics(state).map(({ player, games, history }) => `<article class="statistics-card">
+    <h3>${escapeHtml(player.name)} ${player.archived ? '<span class="status">Arquivado</span>' : ""}</h3>
+    <p><strong>Mímica:</strong> ${games.mimica.total} Desafios · ${games.mimica.correct} acertos · ${games.mimica.missed} erros · ${games.mimica.ignored} ignorados · ${games.mimica.accuracyPercent}%</p>
+    <p><strong>Palavra na Testa:</strong> ${games.palavraNaTesta.correct} acertos · ${games.palavraNaTesta.skipped} pulos · ${games.palavraNaTesta.missed} erros · ${games.palavraNaTesta.ignored} ignorados · ${games.palavraNaTesta.accuracyPercent}%</p>
+    <p><strong>Quem é Mais Provável:</strong> ${games.quemMaisProvavel.votesReceived} Votos recebidos</p>
+    ${games.quemMaisProvavel.byQuestion.length ? `<details><summary>Detalhar por Pergunta</summary><ul>${games.quemMaisProvavel.byQuestion.map((item) => `<li>${escapeHtml(item.question)} — ${item.votesReceived}</li>`).join("")}</ul></details>` : ""}
+    ${history.length ? `<details><summary>Histórico de Partidas (${history.length})</summary><ul>${history.map((item) => `<li><a href="#history?match=${encodeURIComponent(item.matchId)}">${GAME_LABELS[item.game]} — ${formatTimestamp(item.startedAt)}</a>${item.game === "quemMaisProvavel" ? ` · ${item.votesReceived} Votos recebidos` : ` · ${item.results} resultados`}</li>`).join("")}</ul></details>` : '<p class="muted">Nenhuma Partida no histórico.</p>'}
+  </article>`).join("");
+  return cards || '<p class="empty">Cadastre Jogadores para acompanhar estatísticas.</p>';
+}
+
+function matchDetailView(state, matchId) {
+  const detail = matchHistory(state, matchId, { includeIndividualVotes: revealedHistoryMatchId === matchId });
+  const hasVotes = detail.timeline.some((item) => item.type === "vote-recorded");
+  const timeline = detail.timeline.map((item) => {
+    const itemDetail = timelineDetail(state, item);
+    return `<li><time datetime="${item.occurredAt.instant}">${formatTimestamp(item.occurredAt, { withSeconds: true })}</time><div><strong>${EVENT_DESCRIPTORS[item.type]?.label || item.type}</strong>${itemDetail ? `<p>${itemDetail}</p>` : ""}</div></li>`;
+  }).join("");
+  return page(GAME_LABELS[detail.game], "Detalhe da Partida", `<div class="match-facts"><p><strong>Início</strong><br>${formatTimestamp(detail.startedAt)}</p><p><strong>Término</strong><br>${formatTimestamp(detail.endedAt)}</p><p><strong>Duração</strong><br>${durationLabel(detail.durationMs)}</p><p><strong>Estado final</strong><br>${escapeHtml(MATCH_STATE_LABELS[detail.state] || detail.state)}</p></div>
+    <p><strong>Jogadores:</strong> ${detail.participants.map((player) => escapeHtml(player.name)).join(", ")}</p>
+    <h2>Linha do tempo</h2><ol class="timeline">${timeline}</ol>
+    ${hasVotes && revealedHistoryMatchId !== matchId ? '<button class="secondary" data-action="reveal-history-votes">Exibir votos individuais</button>' : ""}
+    <div class="danger-zone"><button class="danger" data-action="delete-match" data-id="${escapeHtml(matchId)}">Excluir esta Partida</button></div>`, '<a class="button secondary" href="#history">← Histórico</a>');
+}
+
+function historyListMarkup(state) {
+  return historyByDay(state).map((group) => `<section class="history-day"><h2>${escapeHtml(dateHeading(group.date))}</h2><ul class="history-list">${group.matches.map((match) => {
+    const count = match.game === "quemMaisProvavel" ? match.questionCount : match.turnCount;
+    const unit = match.game === "quemMaisProvavel" ? `Pergunta${count === 1 ? "" : "s"}` : `Turno${count === 1 ? "" : "s"}`;
+    return `<li class="row-card"><div><strong>${GAME_LABELS[match.game]}</strong><br><span class="muted">${formatTimestamp(match.startedAt)} até ${formatTimestamp(match.endedAt)} · ${durationLabel(match.durationMs)}<br>${match.participants.map((player) => escapeHtml(player.name)).join(", ")} · ${count} ${unit}</span></div><div class="actions"><span class="status">${escapeHtml(MATCH_STATE_LABELS[match.state] || match.state)}</span><a class="button secondary" href="#history?match=${encodeURIComponent(match.id)}">Abrir detalhes</a></div></li>`;
+  }).join("")}</ul></section>`).join("");
+}
+
+function historyView(state, params) {
+  const matchId = params.get("match");
+  if (matchId) return matchDetailView(state, matchId);
+  const history = historyListMarkup(state);
+  return page("Histórico e Estatísticas", "Partidas salvas", `${history || '<p class="empty">As Partidas concluídas aparecerão aqui.</p>'}<h2 class="statistics-title">Por Jogador</h2><div class="statistics-grid">${statisticsMarkup(state)}</div>`, '<a class="button secondary" href="#home">← Início</a>');
 }
 
 function playerName(state, id) {
@@ -331,7 +402,7 @@ function render() {
   else if (route.name === "settings") app.innerHTML = settingsView(state);
   else if (route.name === "content") app.innerHTML = contentView(state, route.params);
   else if (route.name === "backup") app.innerHTML = backupView(state);
-  else if (route.name === "history") app.innerHTML = historyView(state);
+  else if (route.name === "history") app.innerHTML = historyView(state, route.params);
   else if (route.name.startsWith("game-")) app.innerHTML = gameView(state, route.name.slice(5));
   else { location.hash = "#home"; return; }
   document.querySelectorAll(".bottom-nav a").forEach((link) => {
@@ -451,6 +522,13 @@ app.addEventListener("click", (event) => {
       const answer = prompt('Para apagar tudo, digite APAGAR.');
       if (answer === "APAGAR") { store.clear(); pendingRestore = null; location.hash = "#home"; render(); showToast("Todos os dados foram apagados."); }
       else if (answer !== null) showToast("Confirmação incorreta. Nada foi apagado.");
+    } else if (action === "reveal-history-votes"
+      && confirm("Revelar quem votou em quem? Todos perto do aparelho poderão ver.")) {
+      revealedHistoryMatchId = currentRoute().params.get("match"); render();
+    } else if (action === "delete-match"
+      && confirm("Excluir esta Partida completa? As estatísticas serão recalculadas e esta ação não pode ser desfeita.")) {
+      store.update((state) => deleteMatch(state, id));
+      revealedHistoryMatchId = null; navigate("#history"); showToast("Partida excluída.");
     } else if (action === "begin-turn") {
       store.update((state) => beginTurn(state, id, { nowMs: Date.now() })); render();
     } else if (action === "challenge-result") {
@@ -540,7 +618,7 @@ async function syncTimedEffects(state) {
   else if (view.stage === "active" && previousToken.includes(":countdown:")) playSound("start", state);
 }
 
-window.addEventListener("hashchange", render);
+window.addEventListener("hashchange", () => { revealedHistoryMatchId = null; render(); });
 document.addEventListener("visibilitychange", () => {
   const state = store.load();
   if (!state.activeMatch?.timed) return;

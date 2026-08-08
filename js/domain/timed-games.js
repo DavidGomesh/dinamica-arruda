@@ -315,11 +315,13 @@ export function correctLatestResult(state, result, dependencies = {}) {
   const allowed = match.game === "mimica" ? ["correct", "missed", "ignored"]
     : ["correct", "skipped", "missed", "ignored"];
   if (!allowed.includes(result)) throw new Error("Resultado corrigido inválido.");
+  const previousCorrection = [...match.events].reverse().find((event) => event.type === "result-corrected"
+    && event.resultId === finished.id);
   return gameRecords.correctResult(state, {
     resultId: finished.id,
     challengeId: finished.challengeId,
     originalOccurredAt: finished.occurredAt,
-    previousResult: finished.result,
+    previousResult: previousCorrection?.result || finished.result,
     result,
   }, dependencies);
 }
