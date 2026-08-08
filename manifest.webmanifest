@@ -1,0 +1,15 @@
+{
+  "name": "Dinâmica Arruda",
+  "short_name": "Dinâmica Arruda",
+  "description": "Brincadeiras presenciais para família e amigos.",
+  "start_url": "./#home",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#6d28d9",
+  "theme_color": "#6d28d9",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "icons/app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
