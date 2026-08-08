@@ -171,19 +171,20 @@ function resultLabel(result) {
   return ({ correct: "Acerto", missed: "Erro", skipped: "Pulo", ignored: "Ignorado" })[result] || result;
 }
 
+function turnSummary(state, match, { turnId, playerId }) {
+  const results = turnResults(match, turnId);
+  const totals = results.reduce((all, result) => ({ ...all, [result.result]: (all[result.result] || 0) + 1 }), {});
+  return `<div class="turn-summary"><strong>Resumo do Turno de ${escapeHtml(playerName(state, playerId))}</strong><p>${Object.entries(totals).map(([result, count]) => `${count} ${resultLabel(result).toLowerCase()}`).join(" · ") || "Nenhum resultado"}</p></div>`;
+}
+
 function lastTurnSummary(state, match) {
   const finished = [...match.events].reverse().find((event) => event.type === "turn-finished");
-  if (!finished) return "";
-  const results = turnResults(match, finished.turnId);
-  const totals = results.reduce((all, result) => ({ ...all, [result.result]: (all[result.result] || 0) + 1 }), {});
-  return `<div class="turn-summary"><strong>Resumo do Turno de ${escapeHtml(playerName(state, finished.playerId))}</strong><p>${Object.entries(totals).map(([result, count]) => `${count} ${resultLabel(result).toLowerCase()}`).join(" · ") || "Nenhum resultado"}</p></div>`;
+  return finished ? turnSummary(state, match, finished) : "";
 }
 
 function currentTurnSummary(state, match) {
   const turn = match.timed.currentTurn;
-  const results = turnResults(match, turn.id);
-  const totals = results.reduce((all, result) => ({ ...all, [result.result]: (all[result.result] || 0) + 1 }), {});
-  return `<div class="turn-summary"><strong>Resumo do Turno de ${escapeHtml(playerName(state, turn.playerId))}</strong><p>${Object.entries(totals).map(([result, count]) => `${count} ${resultLabel(result).toLowerCase()}`).join(" · ") || "Nenhum resultado"}</p></div>`;
+  return turnSummary(state, match, { turnId: turn.id, playerId: turn.playerId });
 }
 
 function correctionMarkup(game) {
@@ -249,10 +250,12 @@ function gameView(state, game) {
   const correction = active.events.some((event) => event.type === "challenge-finished" && event.turnId === timed.currentTurn.id)
     ? correctionMarkup(game) : "";
   const challenge = `<div class="challenge-card"><p>Desafio</p><strong>${escapeHtml(timed.currentChallenge.content)}</strong></div>`;
+  const feedback = game === "palavraNaTesta" && timed.lastResult && Date.now() <= timed.feedbackUntilMs
+    ? `<div class="headband-feedback ${timed.lastResult}" role="status">${timed.lastResult === "correct" ? "✓ Acerto" : "↷ Pulo"}</div>` : "";
   const actions = game === "mimica"
     ? '<div class="result-actions"><button class="correct" data-action="challenge-result" data-result="correct">✓ Acertaram</button><button class="missed" data-action="challenge-result" data-result="missed">✕ Não acertaram</button></div>'
     : '<div class="headband-zones"><button class="correct" data-action="challenge-result" data-result="correct"><span>✓</span> Acertou</button><button class="skipped" data-action="challenge-result" data-result="skipped"><span>↷</span> Pulou</button></div>';
-  return page(playerName(state, timed.currentTurn.playerId), `Ciclo ${timed.cycleNumber}`, `${timerMarkup(state)}${challenge}${actions}${correction}<div class="actions game-controls"><button class="secondary" data-action="pause-timed">Pausar</button><button class="danger" data-action="end-turn">Encerrar Turno</button><button class="danger" data-action="end-match">Encerrar partida</button></div>`, '<a class="button secondary" href="#home">← Início</a>');
+  return page(playerName(state, timed.currentTurn.playerId), `Ciclo ${timed.cycleNumber}`, `${timerMarkup(state)}${challenge}${actions}${feedback}${correction}<div class="actions game-controls"><button class="secondary" data-action="pause-timed">Pausar</button><button class="danger" data-action="end-turn">Encerrar Turno</button><button class="danger" data-action="end-match">Encerrar partida</button></div>`, '<a class="button secondary" href="#home">← Início</a>');
 }
 
 function render() {
@@ -374,7 +377,7 @@ app.addEventListener("click", (event) => {
       store.update((state) => endMatchEarly(state, { nowMs: Date.now() })); location.hash = "#history"; playSound("end", store.load());
     } else if (action === "new-cycle") {
       store.update((state) => startNewCycle(state)); render();
-    } else if (action === "complete-match") {
+    } else if (action === "complete-match" && confirm("Encerrar esta Partida e salvar os resultados?")) {
       store.update((state) => completeTimedMatch(state)); location.hash = "#history"; playSound("end", store.load());
     } else if (action === "reshuffle") {
       store.update((state) => reshuffleTimedDeck(state, { nowMs: Date.now() })); render();

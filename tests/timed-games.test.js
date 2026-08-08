@@ -16,6 +16,7 @@ import {
   recordChallengeResult,
   startNewCycle,
   resumeTimedMatch,
+  reshuffleTimedDeck,
 } from "../js/domain/timed-games.js";
 
 function ids(...values) {
@@ -80,6 +81,35 @@ test("restauração pausa no último instante persistido e não debita tempo com
   state = interruptTimedMatch(state, { nowMs: persistedAt, clock: clock(), createId: ids("interrupt"), reason: "browser-restored" });
   assert.equal(state.activeMatch.timed.clock.countdownRemainingMs, 2_000);
   assert.equal(state.activeMatch.timed.clock.remainingMs, 40_000);
+});
+
+test("pausa manual continua pausada depois de ocultar e reexibir o app", () => {
+  let state = beginTimedMatch(baseState(), { game: "mimica", playerIds: ["p1"] }, {
+    clock: clock(), createId: ids("match", "start", "cycle", "cycle-event"), random: () => 0,
+  });
+  state = beginTurn(state, "p1", { nowMs: 0, clock: clock(), createId: ids("turn", "turn-event") });
+  state = interruptTimedMatch(state, { nowMs: 1_000, clock: clock(), createId: ids("pause"), reason: "manual" });
+  state = interruptTimedMatch(state, { nowMs: 20_000, clock: clock(), reason: "background" });
+  assert.equal(state.activeMatch.timed.pauseReason, "manual");
+  assert.equal(state.activeMatch.timed.clock.countdownRemainingMs, 2_000);
+});
+
+test("Palavra na Testa congela enquanto o baralho aguarda reembaralhamento", () => {
+  let state = beginTimedMatch(baseState(), { game: "palavraNaTesta", playerIds: ["p1"] }, {
+    clock: clock(), createId: ids("match", "start", "cycle", "cycle-event"), random: () => 0,
+  });
+  state.decks.palavraNaTesta.remainingIds = state.decks.palavraNaTesta.remainingIds.slice(0, 1);
+  state = beginTurn(state, "p1", { nowMs: 0, clock: clock(), createId: ids("turn", "turn-event") });
+  state = advanceClock(state, 3_000, { clock: clock(), createId: ids("challenge", "present") });
+  state = recordChallengeResult(state, "correct", { nowMs: 4_000, clock: clock(), createId: ids("result") });
+  assert.equal(state.activeMatch.timed.phase, "deck-exhausted");
+  assert.equal(state.activeMatch.timed.clock.status, "paused");
+
+  state = reshuffleTimedDeck(state, { nowMs: 50_000, clock: clock(), createId: ids("next", "present-next"), random: () => 0 });
+  assert.equal(state.activeMatch.timed.clock.status, "running");
+  assert.equal(state.activeMatch.timed.clock.runningSinceMs, 50_000);
+  assert.equal(state.activeMatch.timed.lastResult, "correct");
+  assert.equal(state.activeMatch.timed.feedbackUntilMs, 50_700);
 });
 
 test("repetir manualmente um Jogador não encerra o Ciclo antes de todos jogarem", () => {

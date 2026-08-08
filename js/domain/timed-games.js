@@ -65,7 +65,11 @@ function presentNextChallenge(state, dependencies = {}) {
   if (!deckState.decks[match.game]) deckState = createDeck(deckState, match.game, dependencies);
   const draw = drawNext(deckState, match.game);
   if (draw.exhausted) {
-    return withTimed(draw.state, { ...match.timed, phase: "deck-exhausted" });
+    const timed = draw.state.activeMatch.timed;
+    const clock = timed.clock ? { ...timed.clock, status: "paused", runningSinceMs: null } : null;
+    return withTimed(draw.state, {
+      ...timed, phase: "deck-exhausted", clock, pauseReason: "deck-exhausted",
+    });
   }
   const challengeId = nextId(dependencies, "desafio");
   const currentTurn = match.timed.currentTurn;
@@ -157,7 +161,12 @@ function nextAfterResult(state, nowMs, dependencies = {}) {
     return withTimed(state, { ...timed, phase: "challenge-result", clock: null, lastResult });
   }
   if (timed.clock.remainingMs <= 0) return withTimed(state, { ...timed, phase: "turn-summary", clock: null });
-  return presentNextChallenge(state, dependencies);
+  return presentNextChallenge(withTimed(state, {
+    ...timed,
+    lastResult: [...match.events].reverse().find((event) => event.type === "challenge-finished"
+      && event.turnId === timed.currentTurn.id)?.result,
+    feedbackUntilMs: nowMs + 700,
+  }), dependencies);
 }
 
 export function beginTimedMatch(state, input, dependencies = {}) {
@@ -248,6 +257,7 @@ export function resumeClock(state, nowMs) {
 
 export function interruptTimedMatch(state, dependencies = {}) {
   const match = requireTimed(state);
+  if (match.state === "interrupted") return state;
   const nowMs = dependencies.nowMs ?? Date.now();
   let next = state;
   if (match.timed.clock?.status === "running") next = pauseClock(next, nowMs, dependencies);
@@ -387,7 +397,13 @@ export function reshuffleTimedDeck(state, dependencies = {}) {
     const timed = next.activeMatch.timed;
     return match.game === "mimica"
       ? withTimed(next, { ...timed, phase: "countdown", clock: runningClock(durationMs(next, match.game), dependencies.nowMs ?? Date.now()) })
-      : presentNextChallenge(withTimed(next, { ...timed, phase: "challenge" }), dependencies);
+      : presentNextChallenge(withTimed(next, {
+        ...timed,
+        phase: "challenge",
+        pauseReason: null,
+        feedbackUntilMs: timed.lastResult ? (dependencies.nowMs ?? Date.now()) + 700 : timed.feedbackUntilMs,
+        clock: { ...timed.clock, status: "running", runningSinceMs: dependencies.nowMs ?? Date.now() },
+      }), dependencies);
   }
   return withTimed(next, { ...next.activeMatch.timed, phase: "choose-player" });
 }

@@ -117,6 +117,8 @@ fieldset { border: 0; padding: 0; margin: 0 0 1rem; }
 .headband-active .game-timer { position: fixed; z-index: 18; top: 1rem; left: 50%; min-height: 0; transform: translateX(-50%); pointer-events: none; background: var(--paper); border: 3px solid var(--ink); border-radius: 16px; padding: .65rem 1rem; }
 .headband-active .game-timer span { font-size: clamp(3rem, 12vw, 6rem); }
 .headband-active .game-controls { position: fixed; z-index: 20; bottom: max(1rem, env(safe-area-inset-bottom)); left: 50%; width: min(94vw, 680px); transform: translateX(-50%); margin: 0; justify-content: center; }
+.headband-feedback { position: fixed; z-index: 19; top: 28%; left: 50%; transform: translateX(-50%); border: 3px solid var(--ink); border-radius: 999px; padding: .65rem 1rem; font-size: 1.25rem; font-weight: 1000; background: var(--paper); pointer-events: none; }
+.headband-feedback.correct { background: #bbf7d0; }.headband-feedback.skipped { background: #fecaca; }
 
 @media (min-width: 760px) {
   main { padding-bottom: 3rem; }
