@@ -62,6 +62,11 @@ function currentRoute() {
   return { name, params: new URLSearchParams(query) };
 }
 
+function navigate(route) {
+  if (location.hash === route) render();
+  else location.hash = route;
+}
+
 function homeView(state) {
   const resume = state.activeMatch ? `<div class="resume">
     <div><strong>Partida interrompida</strong><p>${GAME_LABELS[state.activeMatch.game] || state.activeMatch.game} · ${state.activeMatch.playerIds.length} Jogadores</p></div>
@@ -285,12 +290,13 @@ function safely(action) { try { action(); } catch (error) { showToast(error.mess
 
 app.addEventListener("submit", (event) => {
   event.preventDefault();
+  const formId = event.target.getAttribute("id");
   const values = formValues(event.target);
   safely(() => {
-    if (event.target.id === "player-form") {
+    if (formId === "player-form") {
       store.update((state) => values.id ? updatePlayer(state, values.id, values) : addPlayer(state, values));
-      location.hash = "#players"; showToast("Jogador salvo.");
-    } else if (event.target.id === "settings-form") {
+      navigate("#players"); showToast("Jogador salvo.");
+    } else if (formId === "settings-form") {
       store.update((state) => updateSettings(state, {
         soundEffects: event.target.elements.soundEffects.checked,
         mimicaDuration: values.mimicaDuration,
@@ -298,10 +304,10 @@ app.addEventListener("submit", (event) => {
         foreheadDuration: values.foreheadDuration,
       }));
       showToast("Configurações salvas."); render();
-    } else if (event.target.id === "content-form") {
+    } else if (formId === "content-form") {
       store.update((state) => values.id ? updateCustomContent(state, values.id, values) : addCustomContent(state, values));
-      location.hash = `#content?game=${values.game}`; showToast("Conteúdo salvo.");
-    } else if (event.target.id === "timed-game-form") {
+      navigate(`#content?game=${values.game}`); showToast("Conteúdo salvo.");
+    } else if (formId === "timed-game-form") {
       const playerIds = [...event.target.querySelectorAll('[name="playerIds"]:checked')].map((input) => input.value);
       store.update((state) => beginTimedMatch(state, { game: event.target.dataset.game, playerIds }));
       render(); playSound("start", store.load());
