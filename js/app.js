@@ -1,4 +1,5 @@
 import { createStore } from "./storage/store.js";
+import { createPwaInstallController } from "./pwa-install.js";
 import { addPlayer, archiveOrDeletePlayer, updatePlayer } from "./domain/players.js";
 import { updateSettings } from "./domain/settings.js";
 import {
@@ -28,7 +29,6 @@ const store = createStore();
 const app = document.querySelector("#app");
 const toast = document.querySelector("#toast");
 let pendingRestore = null;
-let deferredInstallPrompt = null;
 let wakeLock = null;
 let lastSoundToken = "";
 let revealedVotingId = null;
@@ -811,15 +811,18 @@ window.addEventListener("beforeunload", () => {
     store.update((current) => interruptSecretVotingMatch(current, { reason: "browser-closed" }));
   }
 });
-window.addEventListener("beforeinstallprompt", (event) => {
-  event.preventDefault(); deferredInstallPrompt = event;
-  document.querySelector("#install-button").hidden = false;
+const pwaInstall = createPwaInstallController({
+  button: document.querySelector("#install-button"),
+  showMessage: showToast,
+  standalone: standaloneDisplay.matches || navigator.standalone === true,
+  userAgent: navigator.userAgent,
+  platform: navigator.platform,
+  maxTouchPoints: navigator.maxTouchPoints,
 });
-document.querySelector("#install-button").addEventListener("click", async () => {
-  if (!deferredInstallPrompt) return;
-  deferredInstallPrompt.prompt(); await deferredInstallPrompt.userChoice;
-  deferredInstallPrompt = null; document.querySelector("#install-button").hidden = true;
-});
+pwaInstall.start();
+window.addEventListener("beforeinstallprompt", (event) => pwaInstall.handleBeforeInstallPrompt(event));
+window.addEventListener("appinstalled", () => pwaInstall.handleAppInstalled());
+document.querySelector("#install-button").addEventListener("click", () => pwaInstall.install());
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => navigator.serviceWorker.register("./service-worker.js")
