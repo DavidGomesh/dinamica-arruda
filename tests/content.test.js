@@ -1,17 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import { BUILT_IN_CONTENT } from "../js/data/content.js";
 import { addCustomContent, toggleBuiltInContent } from "../js/domain/content.js";
 import { createDefaultState } from "../js/storage/store.js";
 import { createDeck, drawNext } from "../js/domain/decks.js";
 
-test("conteúdo inicial atende os mínimos dos três jogos", () => {
-  assert.ok(BUILT_IN_CONTENT.mimica.length >= 150);
-  assert.ok(BUILT_IN_CONTENT.palavraNaTesta.length >= 200);
-  assert.ok(BUILT_IN_CONTENT.quemMaisProvavel.length >= 100);
-  assert.ok(BUILT_IN_CONTENT.mimica.some((item) => /Pelé/.test(item.text)));
-  assert.ok(BUILT_IN_CONTENT.mimica.some((item) => /melancia/i.test(item.text)));
+function suppliedContent(filename) {
+  return readFileSync(new URL(`../ideia/palavras/${filename}`, import.meta.url), "utf8")
+    .split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+}
+
+test("conteúdo embutido reproduz exatamente as listas fornecidas", () => {
+  assert.deepEqual(BUILT_IN_CONTENT.mimica.map((item) => item.text), suppliedContent("mimica.txt"));
+  assert.deepEqual(BUILT_IN_CONTENT.palavraNaTesta.map((item) => item.text), suppliedContent("palavra-na-testa.txt"));
+  assert.deepEqual(BUILT_IN_CONTENT.quemMaisProvavel.map((item) => item.text), suppliedContent("quem-é-mais-provável.txt"));
 });
 
 test("conteúdo personalizado rejeita vazio e duplicata equivalente no mesmo jogo", () => {

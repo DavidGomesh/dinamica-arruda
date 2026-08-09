@@ -1,0 +1,134 @@
+Guarda-chuva
+Violão
+Guitarra
+Bateria
+Celular
+Computador
+Vara de pescar
+Churrasqueira
+Martelo
+Bicicleta
+Moto
+Carro
+Panela
+Vassoura
+Ventilador
+Câmera
+Mochila
+Bola de futebol
+Rede de dormir
+Macaco
+Galinha
+Cachorro
+Gato
+Peixe
+Caranguejo
+Serra elétrica
+Microfone
+Piano
+Sanfona
+Flauta
+Tambor
+Capacete
+Skate
+Patinete
+Ônibus
+Avião
+Helicóptero
+Barco
+Trator
+Ambulância
+Carrinho de mão
+Escada
+Furadeira
+Alicate
+Chave de fenda
+Machado
+Pá
+Mangueira
+Extintor
+Aspirador de pó
+Ferro de passar
+Secador de cabelo
+Liquidificador
+Cafeteira
+Micro-ondas
+Fogão
+Espelho
+Óculos
+Binóculo
+Relógio
+Cadeira de balanço
+Balanço
+Barraca
+Boia
+Rede de pesca
+Canoa
+Coco
+Abacaxi
+Boneca
+Robô
+Dinossauro
+Estátua
+Troféu
+Costurar
+Pescar
+Cozinhar
+Dirigir
+Correr
+Nadar
+Dormir
+Dançar
+Cantar
+Malhar
+Tirar uma selfie
+Tropeçar
+Espantar mosquito
+Tomar banho de cachoeira
+Entrar numa água muito gelada
+Carregar uma mala muito pesada
+Procurar o celular
+Ficar preso na areia
+Dormir dentro do carro
+Tentar abrir alguma coisa emperrada
+Fugir de uma abelha
+Escovar os dentes
+Pentear o cabelo
+Amarrar o sapato
+Passar roupa
+Lavar roupa
+Lavar louça
+Varrer a casa
+Passar perfume
+Mandar mensagem
+Atender o telefone
+Assistir televisão
+Jogar futebol
+Jogar vôlei
+Levantar peso
+Pular corda
+Escalar
+Plantar uma árvore
+Regar uma planta
+Cortar o cabelo
+Fazer maquiagem
+Trocar um pneu
+Empurrar um carro
+Carregar uma criança
+Passear com um cachorro
+Levar uma picada de mosquito
+Escorregar
+Sentir muito frio
+Sentir muito calor
+Sentir um cheiro ruim
+Comer algo muito azedo
+Queimar a língua
+Espirrar
+Ter soluço
+Roncar
+Acordar atrasado
+Tentar alcançar algo muito alto
+Abrir um presente
+Apagar uma vela
+Fazer churrasco
+Subir numa árvore
