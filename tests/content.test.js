@@ -30,7 +30,7 @@ test("conteúdo personalizado rejeita vazio e duplicata equivalente no mesmo jog
 
 test("baralho usa itens ativos sem repetição e só reinicia explicitamente", () => {
   let state = createDefaultState();
-  state = toggleBuiltInContent(state, "mimica", "mimica-2", false);
+  state = toggleBuiltInContent(state, "mimica", BUILT_IN_CONTENT.mimica[1].id, false);
   state = createDeck(state, "mimica", { random: () => 0 });
   const expected = BUILT_IN_CONTENT.mimica.length - 1;
   const seen = new Set();

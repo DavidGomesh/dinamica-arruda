@@ -1,5 +1,6 @@
+// Gerado por npm run sync-content. Preserve a ordem e as repetições dos arquivos-fonte.
 function items(game, values) {
-  return values.map((text, index) => ({ id: `${game}-${index + 1}`, game, text }));
+  return values.map((text, index) => ({ id: `${game}-catalogo-20260809-${index + 1}`, game, text }));
 }
 
 const mimeChallenges = [

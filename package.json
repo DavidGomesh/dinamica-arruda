@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node scripts/serve.mjs",
+    "sync-content": "node scripts/generate-supplied-content.mjs",
     "test": "node --test"
   }
 }

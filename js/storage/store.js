@@ -1,4 +1,6 @@
-export const SCHEMA_VERSION = 1;
+import { BUILT_IN_CONTENT } from "../data/content.js";
+
+export const SCHEMA_VERSION = 2;
 export const STORAGE_KEY = "dinamica-arruda.state";
 
 export function createDefaultState() {
@@ -61,9 +63,22 @@ export function validateState(input) {
   return input;
 }
 
-function migrate(input) {
+export function migrateState(input) {
   if (!input || typeof input !== "object") throw new Error("Estado local sem estrutura válida.");
   if (input.schemaVersion === SCHEMA_VERSION) return validateState(input);
+  if (input.schemaVersion === 1) {
+    const legacy = validateState({ ...input, schemaVersion: SCHEMA_VERSION });
+    const game = legacy.activeMatch?.game;
+    const activeIds = game && BUILT_IN_CONTENT[game] ? [
+      ...BUILT_IN_CONTENT[game].map((item) => item.id),
+      ...legacy.content.custom.filter((item) => item.game === game && item.active).map((item) => item.id),
+    ] : [];
+    return validateState({
+      ...legacy,
+      content: { ...legacy.content, disabledBuiltInIds: [] },
+      decks: activeIds.length ? { [game]: { remainingIds: activeIds, usedIds: [] } } : {},
+    });
+  }
   if (input.schemaVersion === 0 || input.schemaVersion === undefined) {
     const defaults = createDefaultState();
     return validateState({
@@ -83,8 +98,12 @@ function migrate(input) {
           palavraNaTesta: { ...defaults.settings.games.palavraNaTesta, ...(input.settings?.games?.palavraNaTesta || {}) },
         },
       },
-      content: { ...defaults.content, ...(input.content || {}) },
-      decks: input.decks && typeof input.decks === "object" ? input.decks : defaults.decks,
+      content: {
+        ...defaults.content,
+        ...(input.content || {}),
+        disabledBuiltInIds: [],
+      },
+      decks: defaults.decks,
     });
   }
   throw new Error(`Versão de dados ${input.schemaVersion} não suportada.`);
@@ -100,7 +119,7 @@ export function createStore({ storage = globalThis.localStorage, key = STORAGE_K
     const raw = storage.getItem(key);
     if (!raw) return createDefaultState();
     try {
-      return copy(migrate(JSON.parse(raw)));
+      return copy(migrateState(JSON.parse(raw)));
     } catch (error) {
       storage.setItem(`${key}.${recoveryId()}`, raw);
       lastWarning = "Os dados locais estavam inválidos. Uma cópia de recuperação foi preservada.";
@@ -108,7 +127,7 @@ export function createStore({ storage = globalThis.localStorage, key = STORAGE_K
     }
   }
   function replace(nextState) {
-    const valid = migrate(nextState);
+    const valid = migrateState(nextState);
     storage.setItem(key, JSON.stringify(valid));
     return copy(valid);
   }

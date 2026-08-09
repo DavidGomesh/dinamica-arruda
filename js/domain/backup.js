@@ -1,4 +1,4 @@
-import { SCHEMA_VERSION, validateState } from "../storage/store.js";
+import { migrateState, SCHEMA_VERSION, validateState } from "../storage/store.js";
 
 export function createBackup(state, dependencies = {}) {
   validateState(state);
@@ -12,8 +12,8 @@ export function createBackup(state, dependencies = {}) {
 export function parseBackup(text) {
   let backup;
   try { backup = JSON.parse(text); } catch { throw new Error("O texto não contém JSON válido."); }
-  if (backup.schemaVersion !== SCHEMA_VERSION) throw new Error("Versão de backup não suportada.");
-  return validateState(backup.data);
+  if (![1, SCHEMA_VERSION].includes(backup.schemaVersion)) throw new Error("Versão de backup não suportada.");
+  return backup.schemaVersion === SCHEMA_VERSION ? validateState(backup.data) : migrateState(backup.data);
 }
 
 export function previewBackup(backup) {
