@@ -336,8 +336,8 @@ function secretVotingGameView(state) {
 
 function gameView(state, game) {
   if (game === "quemMaisProvavel") return secretVotingGameView(state);
-  if (!["mimica", "palavraNaTesta"].includes(game)) {
-    return page(GAME_LABELS[game] || "Brincadeira", "Em breve", '<p class="empty">Este jogo será conectado em outro ticket.</p>', '<a class="button secondary" href="#home">← Início</a>');
+  if (!["mimica", "palavraNaTesta", "quemMaisProvavel"].includes(game)) {
+    return page(GAME_LABELS[game] || "Brincadeira", "Em breve", '<p class="empty">Este jogo será disponibilizado em outro momento.</p>', '<a class="button secondary" href="#home">← Início</a>');
   }
   const active = state.activeMatch;
   if (active && active.game !== game) {
