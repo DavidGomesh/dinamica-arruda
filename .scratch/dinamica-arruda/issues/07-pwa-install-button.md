@@ -25,3 +25,5 @@ A regra global de botões define `display: inline-flex` e sobrepõe o estilo nat
 - Reproduzido em 2026-08-09 em duas execuções: o botão tinha `hidden`, estava visualmente presente e o clique não abriu diálogo nem alterou a interface.
 - Corrigido em 2026-08-09 com um controlador testável para os fluxos de instalação, instruções específicas para iPhone/iPad e uma regra explícita que preserva a semântica de `hidden`.
 - O cache da PWA foi atualizado para `dinamica-arruda-v17`. A verificação no navegador ficou verde após a ativação desse service worker, sem erros no console.
+- Novo relato em 2026-08-09: a opção de instalação ainda aparecia ao abrir uma PWA já instalada. A cobertura anterior verificava apenas `standalone` no carregamento inicial.
+- O controlador agora reconhece todos os modos instalados (`standalone`, `minimal-ui`, `fullscreen` e `window-controls-overlay`), o sinal do iOS e mudanças de modo durante a transferência para a janela da PWA. O cache foi atualizado para `dinamica-arruda-v19`.

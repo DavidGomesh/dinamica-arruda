@@ -1,11 +1,16 @@
 import { createStore } from "./storage/store.js";
-import { createPwaInstallController } from "./pwa-install.js";
+import {
+  createPwaInstallController, INSTALLED_PWA_DISPLAY_MODES, isInstalledPwaDisplay,
+} from "./pwa-install.js";
 import { addPlayer, archiveOrDeletePlayer, updatePlayer } from "./domain/players.js";
 import { updateSettings } from "./domain/settings.js";
 import {
   addCustomContent, deleteCustomContent, toggleBuiltInContent, toggleCustomContent, updateCustomContent,
 } from "./domain/content.js";
 import { BUILT_IN_CONTENT } from "./data/content.js";
+import {
+  normalizeCustomPlayerIcon, PLAYER_COLORS as COLORS, PLAYER_ICONS as ICONS, playerIconGlyph,
+} from "./data/player-appearance.js";
 import { parseBackup, previewBackup, serializeBackup } from "./domain/backup.js";
 import { formatTimestamp } from "./domain/time.js";
 import { deleteMatch, historyByDay, matchHistory, playerStatistics } from "./domain/history.js";
@@ -40,6 +45,9 @@ let headbandMenuOpen = false;
 let headbandHelpOpen = false;
 const portraitOrientation = window.matchMedia("(orientation: portrait)");
 const standaloneDisplay = window.matchMedia("(display-mode: standalone)");
+const installedDisplayQueries = new Map(INSTALLED_PWA_DISPLAY_MODES.map((mode) => [
+  mode, mode === "standalone" ? standaloneDisplay : window.matchMedia(`(display-mode: ${mode})`),
+]));
 const coarsePointer = window.matchMedia("(pointer: coarse)");
 const hoverNone = window.matchMedia("(hover: none)");
 const landscapeLock = createLandscapeLockController({
@@ -47,17 +55,7 @@ const landscapeLock = createLandscapeLockController({
   unlock: () => window.screen.orientation?.unlock?.(),
 });
 
-const COLORS = [
-  "#facc15", "#fb923c", "#fb7185", "#e879f9", "#c084fc", "#8b5cf6", "#6366f1",
-  "#60a5fa", "#38bdf8", "#22d3ee", "#2dd4bf", "#34d399", "#4ade80", "#a3e635",
-  "#bef264", "#fde047", "#fda4af", "#d8b4fe", "#93c5fd", "#99f6e4",
-];
-const ICONS = [
-  ["guepardo", "🐆"], ["et", "👽"], ["leao", "🦁"], ["raposa", "🦊"], ["panda", "🐼"],
-  ["sapo", "🐸"], ["polvo", "🐙"], ["coruja", "🦉"], ["pinguim", "🐧"], ["unicornio", "🦄"],
-  ["robo", "🤖"], ["fantasma", "👻"], ["mago", "🧙"], ["pirata", "🏴‍☠️"], ["astronauta", "🧑‍🚀"],
-  ["detetive", "🕵️"], ["ninja", "🥷"], ["palhaco", "🤡"], ["dragao", "🐉"], ["dinossauro", "🦖"],
-];
+const CUSTOM_CHOICE = "__custom__";
 const GAME_LABELS = {
   mimica: "Mímica", palavraNaTesta: "Palavra na Testa", quemMaisProvavel: "Quem é Mais Provável",
 };
@@ -70,7 +68,7 @@ function escapeHtml(value = "") {
 }
 
 function iconFor(id) {
-  return ICONS.find(([key]) => key === id)?.[1] || "🙂";
+  return escapeHtml(playerIconGlyph(id));
 }
 
 function showToast(message) {
@@ -192,14 +190,22 @@ function homeView(state) {
 function playerForm(player) {
   const selectedColor = player?.color || COLORS[0];
   const selectedIcon = player?.icon || ICONS[0][0];
+  const hasPresetColor = COLORS.includes(selectedColor);
+  const hasPresetIcon = ICONS.some(([id]) => id === selectedIcon);
+  const customColor = hasPresetColor ? "#7c3aed" : selectedColor;
+  const customIcon = hasPresetIcon ? "" : selectedIcon;
   return `<form id="player-form">
     <input type="hidden" name="id" value="${escapeHtml(player?.id || "")}">
     <div class="form-grid">
       <label><span>Nome</span><input name="name" required maxlength="40" autocomplete="off" value="${escapeHtml(player?.name || "")}" placeholder="Como vamos chamar?"></label>
       <label><span>Cor do texto</span><select name="textColor"><option value="">Automática (melhor contraste)</option><option value="#111111" ${player?.textColorMode === "manual" && player.textColor === "#111111" ? "selected" : ""}>Escura</option><option value="#ffffff" ${player?.textColorMode === "manual" && player.textColor === "#ffffff" ? "selected" : ""}>Clara</option></select></label>
     </div>
-    <fieldset><legend>Cor da ficha</legend><div class="choice-grid">${COLORS.map((color) => `<label class="choice color-choice" style="--choice:${color};--choice-text:#111"><input type="radio" name="color" value="${color}" ${color === selectedColor ? "checked" : ""}><span>${color}</span></label>`).join("")}</div></fieldset>
-    <fieldset><legend>Ícone</legend><div class="choice-grid">${ICONS.map(([id, emoji]) => `<label class="choice"><input type="radio" name="icon" value="${id}" ${id === selectedIcon ? "checked" : ""}><span title="${id}">${emoji}</span></label>`).join("")}</div></fieldset>
+    <fieldset><legend>Cor da ficha</legend><div class="choice-grid">${COLORS.map((color) => `<label class="choice color-choice" style="--choice:${color};--choice-text:#111"><input type="radio" name="color" value="${color}" ${color === selectedColor ? "checked" : ""}><span>${color}</span></label>`).join("")}<label class="choice custom-choice"><input type="radio" name="color" value="${CUSTOM_CHOICE}" ${hasPresetColor ? "" : "checked"}><span title="Escolher qualquer cor">🎨</span></label></div>
+      <label class="custom-value-field"><span>Escolha livre</span><input type="color" name="customColor" value="${escapeHtml(customColor)}" data-custom-choice="color" aria-label="Cor personalizada da ficha"></label>
+    </fieldset>
+    <fieldset><legend>Ícone</legend><div class="choice-grid">${ICONS.map(([id, emoji]) => `<label class="choice"><input type="radio" name="icon" value="${id}" ${id === selectedIcon ? "checked" : ""}><span title="${id}">${emoji}</span></label>`).join("")}<label class="choice custom-choice"><input type="radio" name="icon" value="${CUSTOM_CHOICE}" ${hasPresetIcon ? "" : "checked"}><span title="Escolher qualquer emoji">＋</span></label></div>
+      <label class="custom-value-field"><span>Emoji personalizado</span><input name="customIcon" value="${escapeHtml(customIcon)}" data-custom-choice="icon" autocomplete="off" inputmode="text" placeholder="Ex.: 🐙" aria-describedby="custom-icon-help"><small id="custom-icon-help">Digite ou cole um único emoji.</small></label>
+    </fieldset>
     <div class="actions"><button type="submit">${player ? "Salvar alterações" : "Adicionar Jogador"}</button>${player ? '<a class="button secondary" href="#players">Cancelar</a>' : ""}</div>
   </form>`;
 }
@@ -554,6 +560,10 @@ app.addEventListener("submit", (event) => {
   const values = formValues(event.target);
   safely(() => {
     if (formId === "player-form") {
+      if (values.color === CUSTOM_CHOICE) values.color = values.customColor;
+      if (values.icon === CUSTOM_CHOICE) values.icon = normalizeCustomPlayerIcon(values.customIcon);
+      delete values.customColor;
+      delete values.customIcon;
       store.update((state) => values.id ? updatePlayer(state, values.id, values) : addPlayer(state, values));
       navigate("#players"); showToast("Jogador salvo.");
     } else if (formId === "settings-form") {
@@ -587,7 +597,11 @@ app.addEventListener("submit", (event) => {
 app.addEventListener("change", (event) => {
   const action = event.target.dataset.action;
   safely(() => {
-    if (event.target.closest("#content-filter")) {
+    if (event.target.dataset.customChoice) {
+      const form = event.target.closest("form");
+      const customChoice = form?.querySelector(`[name="${event.target.dataset.customChoice}"][value="${CUSTOM_CHOICE}"]`);
+      if (customChoice) customChoice.checked = true;
+    } else if (event.target.closest("#content-filter")) {
       location.hash = `#content?game=${event.target.value}`;
     } else if (action === "toggle-custom") {
       store.update((state) => toggleCustomContent(state, event.target.dataset.id, event.target.checked));
@@ -814,12 +828,19 @@ window.addEventListener("beforeunload", () => {
 const pwaInstall = createPwaInstallController({
   button: document.querySelector("#install-button"),
   showMessage: showToast,
-  standalone: standaloneDisplay.matches || navigator.standalone === true,
+  isInstalled: () => isInstalledPwaDisplay(
+    (mode) => installedDisplayQueries.get(mode).matches,
+    navigator.standalone === true,
+  ),
   userAgent: navigator.userAgent,
   platform: navigator.platform,
   maxTouchPoints: navigator.maxTouchPoints,
 });
 pwaInstall.start();
+for (const mediaQuery of installedDisplayQueries.values()) {
+  if (mediaQuery.addEventListener) mediaQuery.addEventListener("change", () => pwaInstall.handleDisplayModeChange());
+  else mediaQuery.addListener?.(() => pwaInstall.handleDisplayModeChange());
+}
 window.addEventListener("beforeinstallprompt", (event) => pwaInstall.handleBeforeInstallPrompt(event));
 window.addEventListener("appinstalled", () => pwaInstall.handleAppInstalled());
 document.querySelector("#install-button").addEventListener("click", () => pwaInstall.install());

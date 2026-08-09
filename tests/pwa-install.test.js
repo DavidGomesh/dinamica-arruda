@@ -2,7 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-import { createPwaInstallController, isIosInstallPlatform } from "../js/pwa-install.js";
+import {
+  createPwaInstallController, isInstalledPwaDisplay, isIosInstallPlatform,
+} from "../js/pwa-install.js";
 
 function installButton() {
   return { hidden: true, textContent: "Instalar app" };
@@ -60,6 +62,26 @@ test("modo instalado mantém o controle oculto", () => {
   const controller = createPwaInstallController({ button, standalone: true });
   controller.start();
   controller.handleBeforeInstallPrompt({ preventDefault() {} });
+  assert.equal(button.hidden, true);
+});
+
+test("modos instalados alternativos também mantêm o controle oculto", () => {
+  for (const installedMode of ["standalone", "minimal-ui", "fullscreen", "window-controls-overlay"]) {
+    assert.equal(isInstalledPwaDisplay((mode) => mode === installedMode), true, installedMode);
+  }
+  assert.equal(isInstalledPwaDisplay(() => false, true), true, "iOS standalone");
+  assert.equal(isInstalledPwaDisplay(() => false, false), false, "aba do navegador");
+});
+
+test("mudança para janela instalada oculta uma oferta já visível", () => {
+  const button = installButton();
+  let installedDisplay = false;
+  const controller = createPwaInstallController({ button, isInstalled: () => installedDisplay });
+  controller.handleBeforeInstallPrompt({ preventDefault() {} });
+  assert.equal(button.hidden, false);
+
+  installedDisplay = true;
+  controller.handleDisplayModeChange();
   assert.equal(button.hidden, true);
 });
 
