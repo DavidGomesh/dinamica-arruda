@@ -16,10 +16,13 @@ Fazer a fase ativa do Turno de Palavra na Testa privilegiar a orientação paisa
 - Em celular e tablet, remover os botões de resultado e transformar a tela ativa inteira em superfície de gesto: deslizar para esquerda ou direita registra Acerto; deslizar para cima ou baixo registra Pulo. Toques curtos e diagonais ambíguas não registram resultado.
 - Em desktop, manter botões clicáveis de Pulo à esquerda e Acerto à direita; gestos não são ativados nessa interface.
 - No modo móvel, recolher Pausar, Encerrar Turno e Encerrar Partida em um menu hambúrguer para evitar toques acidentais. O menu e seus comandos não registram gestos.
+- Persistir o menu aberto durante as atualizações do relógio, mover as instruções de gesto para uma Ajuda dentro dele e manter Acerto/Pulo ali como alternativa acessível.
 - Usar a área liberada pelos controles para dar prioridade máxima ao Desafio, com tipografia substancialmente maior e adaptação apenas para conteúdo longo.
-- Posicionar o tempo em uma faixa própria acima do Desafio dentro da coluna central. O tempo nunca pode sobrepor, empurrar lateralmente nem reduzir a leitura do Desafio.
+- Centralizar o Desafio na viewport e encaixar o tempo sobre sua borda superior, sem cobrir o texto.
+- Reproduzir um efeito sonoro próprio e perceptível quando uma palavra for pulada.
+- Encaixar o tempo no centro da borda superior do cartão do Desafio. Ele pode invadir a área vazia do cartão, mas nunca cobrir nem deslocar o texto.
 - Reservar largura estável para o número do tempo com algarismos tabulares. Nos segundos finais, tensão, cor e pulsação só podem usar `transform`/cor, sem alterar a posição ou a largura do componente.
-- Manter Pausar e Encerrar fora das zonas de toque principais, em uma faixa central inferior compacta, respeitando as safe areas do aparelho.
+- Manter Pausar e Encerrar recolhidos no menu e fora da superfície de gestos, respeitando as safe areas do aparelho.
 - Não alterar `manifest.webmanifest` para `orientation: landscape`, pois isso forçaria paisagem em toda a PWA, inclusive cadastro, ajustes e histórico.
 
 ## Plano de implementação
@@ -42,6 +45,8 @@ Fazer a fase ativa do Turno de Palavra na Testa privilegiar a orientação paisa
 - Em desktop, os botões Pulo e Acerto permanecem visíveis e clicáveis, nessa ordem da esquerda para a direita.
 - Toque curto, diagonal ambígua e gesto iniciado sobre Pausar ou Encerrar não registram resultado.
 - Pausar e Encerrar ficam recolhidos no menu hambúrguer durante a experiência móvel.
+- O menu não fecha com os ticks do relógio; sua Ajuda explica os gestos sem ocupar a tela principal.
+- Pular uma palavra produz feedback sonoro diferente de Acerto.
 - Cada novo Turno entra no topo da viewport, sem herdar rolagem nem gesto pendente do Turno anterior.
 - Girar para retrato durante o Turno não consome tempo nem registra resultado; voltar à paisagem continua do ponto correto.
 - Pausar ou sair não deixa a orientação travada.
@@ -56,3 +61,4 @@ Fazer a fase ativa do Turno de Palavra na Testa privilegiar a orientação paisa
 - QA final aprovado em 667×375 para o modo móvel: botões de resultado ocultos, instrução de gestos visível, Desafio longo inteiro e sem sobreposição ou overflow. Em 1024×768, o desktop manteve Pulo à esquerda e Acerto à direita, com a instrução de gestos oculta.
 - Ajuste solicitado em 2026-08-08: controles administrativos recolhidos em menu no móvel, Desafio ampliado e estado transitório limpo na entrada de cada novo Turno.
 - QA do ajuste aprovado em viewport móvel real de 667×375: tempo e menu permanecem separados, os controles ficam recolhidos e uma palavra de doze letras ocupa uma linha ampla sem sobreposição nem overflow.
+- QA final do layout inspirado no modelo aprovado em 667×375 e 844×390: Desafio centralizado, cronômetro encaixado na borda superior e instruções fora da tela principal. As verificações anteriores de 1024×768 e 1366×1024 continuam válidas para o desktop, cujo layout não foi alterado por este ajuste.

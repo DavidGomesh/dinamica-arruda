@@ -4,9 +4,13 @@ export const HEADBAND_CLOCK_ACTION = Object.freeze({
 });
 export const HEADBAND_PAUSE_REASON = "orientation";
 
-export function isHeadbandMobileDevice({ userAgent = "", platform = "", maxTouchPoints = 0 }) {
+export function isHeadbandMobileDevice({
+  userAgent = "", platform = "", maxTouchPoints = 0, coarsePointer = false, hoverNone = false,
+}) {
   return /Android|iPhone|iPad|iPod/i.test(userAgent)
-    || (/Mac/i.test(platform) && maxTouchPoints > 1);
+    || (/Mac/i.test(platform) && maxTouchPoints > 1)
+    || ((/Windows/i.test(userAgent) || /Win/i.test(platform))
+      && maxTouchPoints > 1 && coarsePointer && hoverNone);
 }
 
 export function headbandChallengeSize(content = "") {

@@ -94,6 +94,16 @@ test("desktop Windows com tela sensível ao toque não entra no modo móvel", ()
   }), false);
 });
 
+test("tablet Windows em uso por toque entra no modo móvel", () => {
+  assert.equal(isHeadbandMobileDevice({
+    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    platform: "Win32",
+    maxTouchPoints: 10,
+    coarsePointer: true,
+    hoverNone: true,
+  }), true);
+});
+
 test("saída durante bloqueio pendente libera a orientação depois que a API responde", async () => {
   let resolveLock;
   let unlockCount = 0;

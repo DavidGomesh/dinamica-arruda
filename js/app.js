@@ -36,8 +36,12 @@ let revealedHistoryMatchId = null;
 let toastTimeout = null;
 let headbandGesture = null;
 let headbandImmersive = false;
+let headbandMenuOpen = false;
+let headbandHelpOpen = false;
 const portraitOrientation = window.matchMedia("(orientation: portrait)");
 const standaloneDisplay = window.matchMedia("(display-mode: standalone)");
+const coarsePointer = window.matchMedia("(pointer: coarse)");
+const hoverNone = window.matchMedia("(hover: none)");
 const landscapeLock = createLandscapeLockController({
   lock: (orientation) => window.screen.orientation.lock(orientation),
   unlock: () => window.screen.orientation?.unlock?.(),
@@ -94,6 +98,8 @@ function isMobileHeadbandDevice() {
     userAgent: navigator.userAgent,
     platform: navigator.platform,
     maxTouchPoints: navigator.maxTouchPoints,
+    coarsePointer: coarsePointer.matches,
+    hoverNone: hoverNone.matches,
   });
 }
 
@@ -129,6 +135,14 @@ function syncHeadbandExperience(state, route) {
   const decision = headbandDecision(state, route);
   const enteringImmersive = decision.immersive && !headbandImmersive;
   if (!decision.immersive) headbandGesture = null;
+  if (!decision.immersive && !decision.needsLandscape) {
+    headbandMenuOpen = false;
+    headbandHelpOpen = false;
+  }
+  if (enteringImmersive) {
+    headbandMenuOpen = false;
+    headbandHelpOpen = false;
+  }
   headbandImmersive = decision.immersive;
   document.body.classList.toggle("headband-active", decision.immersive);
   document.body.classList.toggle("headband-needs-landscape", decision.needsLandscape);
@@ -360,10 +374,18 @@ function timerMarkup(state) {
   return `<div class="game-timer ${view.tense ? "tense" : ""} ${view.finalSeconds ? "final" : ""}"${tensionStyle} role="timer" aria-label="${view.seconds} segundos restantes"><span>${view.seconds}</span><small>segundos</small></div>`;
 }
 
-function timedControlsMarkup({ headband = false } = {}) {
+function headbandMenuMarkup({ includeResults = false, orientationFallback = false } = {}) {
+  const results = includeResults ? '<div class="headband-menu-results"><button class="skipped" data-action="challenge-result" data-result="skipped">Pular palavra</button><button class="correct" data-action="challenge-result" data-result="correct">Acertar palavra</button></div>' : "";
+  const pause = orientationFallback ? "" : '<button class="secondary" data-action="pause-timed">Pausar</button>';
+  const help = orientationFallback ? "" : `<button class="secondary" data-action="toggle-headband-help" aria-expanded="${headbandHelpOpen}">Ajuda dos gestos</button>${headbandHelpOpen ? '<p class="headband-menu-help">← ou → Acerto<br>↑ ou ↓ Pulo</p>' : ""}`;
+  const exit = orientationFallback ? '<a class="button secondary" href="#home">Ir ao início</a>' : "";
+  return `<details class="headband-menu"${headbandMenuOpen ? " open" : ""}><summary aria-label="Abrir opções do Turno">☰</summary><div class="headband-menu-panel">${results}${help}${pause}<button class="danger" data-action="end-turn">Encerrar Turno</button><button class="danger" data-action="end-match">Encerrar partida</button>${exit}</div></details>`;
+}
+
+function timedControlsMarkup({ headband = false, includeResults = false } = {}) {
   const buttons = '<button class="secondary" data-action="pause-timed">Pausar</button><button class="danger" data-action="end-turn">Encerrar Turno</button><button class="danger" data-action="end-match">Encerrar partida</button>';
   if (!headband) return `<div class="actions game-controls">${buttons}</div>`;
-  return `<div class="actions game-controls headband-desktop-controls">${buttons}</div><details class="headband-menu"><summary aria-label="Abrir opções do Turno">☰</summary><div class="headband-menu-panel">${buttons}</div></details>`;
+  return `<div class="actions game-controls headband-desktop-controls">${buttons}</div>${headbandMenuMarkup({ includeResults })}`;
 }
 
 function votingPlayerCard(state, playerId, content = "") {
@@ -436,7 +458,7 @@ function gameView(state, game) {
   const timed = active.timed;
   const summary = lastTurnSummary(state, active);
   if (active.state === "interrupted" && timed.pauseReason === "orientation") {
-    return page("Gire o aparelho", "Turno pausado", '<div class="headband-rotate"><span aria-hidden="true">↻</span><strong>Coloque o aparelho deitado</strong><p>O tempo continua congelado e volta automaticamente quando a tela estiver em paisagem.</p></div>', '<a class="button secondary" href="#home">← Início</a>');
+    return page("Gire o aparelho", "Turno pausado", `<div class="headband-rotate"><span aria-hidden="true">↻</span><strong>Coloque o aparelho deitado</strong><p>O tempo continua congelado e volta automaticamente quando a tela estiver em paisagem.</p></div>${headbandMenuMarkup({ orientationFallback: true })}`, '<a class="button secondary" href="#home">← Início</a>');
   }
   if (active.state === "interrupted") {
     return page(GAME_LABELS[game], "Partida pausada", `${timerMarkup(state)}<p class="empty">O tempo está congelado. Continue quando o aparelho estiver pronto.</p><div class="actions"><button data-action="resume-timed">Continuar</button><button class="danger" data-action="end-match">Encerrar partida</button></div>`, '<a class="button secondary" href="#home">← Início</a>');
@@ -479,8 +501,7 @@ function gameView(state, game) {
     ? '<div class="result-actions"><button class="correct" data-action="challenge-result" data-result="correct">✓ Acertaram</button><button class="missed" data-action="challenge-result" data-result="missed">✕ Não acertaram</button></div>'
     : '<div class="headband-zones"><button class="skipped" data-action="challenge-result" data-result="skipped"><span>↷</span> Pulou</button><button class="correct" data-action="challenge-result" data-result="correct"><span>✓</span> Acertou</button></div>';
   if (game === "palavraNaTesta") {
-    const gestureStatus = feedback || '<div class="headband-gesture-hint">← → Acerto · ↑ ↓ Pulo</div>';
-    return page(playerName(state, timed.currentTurn.playerId), `Ciclo ${timed.cycleNumber}`, `<div class="headband-stage"><div class="headband-center">${timerMarkup(state)}<div class="headband-feedback-slot">${gestureStatus}</div>${challenge}</div>${timedControlsMarkup({ headband: true })}${actions}</div>${correction}`, '<a class="button secondary" href="#home">← Início</a>');
+    return page(playerName(state, timed.currentTurn.playerId), `Ciclo ${timed.cycleNumber}`, `<div class="headband-stage"><div class="headband-center">${timerMarkup(state)}${challenge}<div class="headband-feedback-slot">${feedback}</div></div>${timedControlsMarkup({ headband: true, includeResults: true })}${actions}</div>${correction}`, '<a class="button secondary" href="#home">← Início</a>');
   }
   return page(playerName(state, timed.currentTurn.playerId), `Ciclo ${timed.cycleNumber}`, `${timerMarkup(state)}${challenge}${actions}${feedback}${correction}<div class="actions game-controls"><button class="secondary" data-action="pause-timed">Pausar</button><button class="danger" data-action="end-turn">Encerrar Turno</button><button class="danger" data-action="end-match">Encerrar partida</button></div>`, '<a class="button secondary" href="#home">← Início</a>');
 }
@@ -509,8 +530,10 @@ function render() {
 function formValues(form) { return Object.fromEntries(new FormData(form)); }
 function safely(action) { try { action(); } catch (error) { showToast(error.message); } }
 function recordChallengeFromInterface(result) {
+  headbandMenuOpen = false;
+  headbandHelpOpen = false;
   store.update((state) => recordChallengeResult(state, result, { nowMs: Date.now() }));
-  playSound(result === "correct" ? "correct" : "missed", store.load());
+  playSound(result === "correct" ? "correct" : result === "skipped" ? "skipped" : "missed", store.load());
   render();
 }
 
@@ -591,6 +614,10 @@ app.addEventListener("pointercancel", (event) => {
   if (headbandGesture?.pointerId === event.pointerId) headbandGesture = null;
 });
 
+app.addEventListener("toggle", (event) => {
+  if (event.target.matches?.(".headband-menu")) headbandMenuOpen = event.target.open;
+}, true);
+
 app.addEventListener("click", (event) => {
   const navigation = event.target.closest('a[href^="#"]');
   const current = store.load();
@@ -658,6 +685,10 @@ app.addEventListener("click", (event) => {
       render();
     } else if (action === "challenge-result") {
       recordChallengeFromInterface(button.dataset.result);
+    } else if (action === "toggle-headband-help") {
+      headbandHelpOpen = !headbandHelpOpen;
+      headbandMenuOpen = true;
+      render();
     } else if (action === "correct-result") {
       store.update((state) => correctLatestResult(state, button.dataset.result)); showToast("Resultado corrigido."); render();
     } else if (action === "pause-timed") {
@@ -716,10 +747,14 @@ function playSound(kind, state) {
   const context = new AudioContext();
   const oscillator = context.createOscillator();
   const gain = context.createGain();
-  oscillator.frequency.value = ({ start: 660, correct: 880, missed: 240, tick: 520, end: 180 })[kind] || 440;
-  gain.gain.setValueAtTime(.08, context.currentTime);
-  gain.gain.exponentialRampToValueAtTime(.001, context.currentTime + .11);
-  oscillator.connect(gain); gain.connect(context.destination); oscillator.start(); oscillator.stop(context.currentTime + .12);
+  const skipped = kind === "skipped";
+  const duration = skipped ? .22 : .12;
+  oscillator.type = skipped ? "square" : "sine";
+  oscillator.frequency.value = ({ start: 660, correct: 880, skipped: 520, missed: 240, tick: 520, end: 180 })[kind] || 440;
+  if (skipped) oscillator.frequency.exponentialRampToValueAtTime(210, context.currentTime + duration);
+  gain.gain.setValueAtTime(skipped ? .11 : .08, context.currentTime);
+  gain.gain.exponentialRampToValueAtTime(.001, context.currentTime + duration - .01);
+  oscillator.connect(gain); gain.connect(context.destination); oscillator.start(); oscillator.stop(context.currentTime + duration);
   oscillator.addEventListener("ended", () => context.close());
 }
 
