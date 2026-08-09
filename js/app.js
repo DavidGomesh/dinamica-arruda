@@ -29,6 +29,7 @@ let wakeLock = null;
 let lastSoundToken = "";
 let revealedVotingId = null;
 let revealedHistoryMatchId = null;
+let toastTimeout = null;
 
 const COLORS = [
   "#facc15", "#fb923c", "#fb7185", "#e879f9", "#c084fc", "#8b5cf6", "#6366f1",
@@ -57,9 +58,13 @@ function iconFor(id) {
 }
 
 function showToast(message) {
+  window.clearTimeout(toastTimeout);
   toast.textContent = message;
   toast.classList.add("show");
-  window.setTimeout(() => toast.classList.remove("show"), 2600);
+  toastTimeout = window.setTimeout(() => {
+    toast.classList.remove("show");
+    toastTimeout = null;
+  }, 2600);
 }
 
 function page(title, eyebrow, content, action = "") {

@@ -74,8 +74,8 @@ fieldset { border: 0; padding: 0; margin: 0 0 1rem; }
 .bottom-nav a { color: var(--ink); text-decoration: none; min-height: 62px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: .72rem; font-weight: 900; }
 .bottom-nav a span { font-size: 1.15rem; }
 .bottom-nav a[aria-current="page"] { background: var(--yellow); }
-.toast { position: fixed; z-index: 30; left: 50%; bottom: 5.5rem; transform: translate(-50%, 150%); background: var(--ink); color: white; padding: .8rem 1rem; border-radius: 12px; transition: transform .2s ease; pointer-events: none; max-width: calc(100% - 2rem); }
-.toast.show { transform: translate(-50%, 0); }
+.toast { position: fixed; z-index: 30; left: 50%; bottom: 5.5rem; transform: translate(-50%, 1rem); opacity: 0; visibility: hidden; background: var(--ink); color: white; padding: .8rem 1rem; border-radius: 12px; transition: transform .2s ease, opacity .2s ease, visibility 0s linear .2s; pointer-events: none; max-width: calc(100% - 2rem); }
+.toast.show { transform: translate(-50%, 0); opacity: 1; visibility: visible; transition-delay: 0s; }
 .empty { text-align: center; padding: 2rem; border: 2px dashed #a89ead; border-radius: 15px; color: var(--muted); }
 .status { display: inline-block; border: 2px solid currentColor; border-radius: 99px; padding: .15rem .5rem; font-size: .72rem; font-weight: 900; }
 .player-choice-grid, .player-turn-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .8rem; margin: 1rem 0; }
