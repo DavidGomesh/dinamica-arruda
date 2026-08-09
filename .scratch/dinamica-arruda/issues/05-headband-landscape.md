@@ -62,3 +62,4 @@ Fazer a fase ativa do Turno de Palavra na Testa privilegiar a orientação paisa
 - Ajuste solicitado em 2026-08-08: controles administrativos recolhidos em menu no móvel, Desafio ampliado e estado transitório limpo na entrada de cada novo Turno.
 - QA do ajuste aprovado em viewport móvel real de 667×375: tempo e menu permanecem separados, os controles ficam recolhidos e uma palavra de doze letras ocupa uma linha ampla sem sobreposição nem overflow.
 - QA final do layout inspirado no modelo aprovado em 667×375 e 844×390: Desafio centralizado, cronômetro encaixado na borda superior e instruções fora da tela principal. As verificações anteriores de 1024×768 e 1366×1024 continuam válidas para o desktop, cujo layout não foi alterado por este ajuste.
+- O tick do relógio passou a atualizar somente o componente de tempo quando a fase e o Desafio não mudam, preservando menu, Ajuda e foco de teclado entre atualizações.

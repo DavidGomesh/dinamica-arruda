@@ -527,6 +527,17 @@ function render() {
   syncTimedEffects(state);
 }
 
+function refreshTimedView(state) {
+  const currentTimer = app.querySelector(".game-timer, .countdown");
+  const template = document.createElement("template");
+  template.innerHTML = timerMarkup(state);
+  const nextTimer = template.content.firstElementChild;
+  if (currentTimer && nextTimer) currentTimer.replaceWith(nextTimer);
+  const feedback = app.querySelector(".headband-feedback");
+  if (feedback && Date.now() > (state.activeMatch?.timed?.feedbackUntilMs || 0)) feedback.remove();
+  syncTimedEffects(state);
+}
+
 function formValues(form) { return Object.fromEntries(new FormData(form)); }
 function safely(action) { try { action(); } catch (error) { showToast(error.message); } }
 function recordChallengeFromInterface(result) {
@@ -832,7 +843,13 @@ window.setInterval(() => {
     const before = clockView(state, Date.now());
     const next = store.update((current) => advanceClock(current, Date.now()));
     if (before.stage === "active" && !next.activeMatch?.timed?.clock) playSound("end", next);
-    render();
+    const previousTimed = state.activeMatch.timed;
+    const nextTimed = next.activeMatch?.timed;
+    const sameView = next.activeMatch?.state === state.activeMatch.state
+      && nextTimed?.phase === previousTimed.phase
+      && nextTimed?.currentChallenge?.id === previousTimed.currentChallenge?.id;
+    if (sameView) refreshTimedView(next);
+    else render();
   });
 }, 200);
 
