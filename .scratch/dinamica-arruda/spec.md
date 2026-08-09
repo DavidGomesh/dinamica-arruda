@@ -200,9 +200,9 @@ Quando houver uma Partida interrompida, a tela inicial deve destacar `Continuar 
 
 1. Mostrar a Pergunta para o grupo.
 2. Para cada participante, mostrar uma tela neutra com seu nome e `Começar meu voto`.
-3. Depois do toque, permitir escolher qualquer participante, inclusive a própria pessoa.
-4. Exigir exatamente um Voto por participante.
-5. Confirmar o Voto e voltar a uma tela neutra antes de passar o aparelho.
+3. Depois do toque, permitir escolher um ou mais participantes, inclusive a própria pessoa.
+4. Exigir pelo menos um Voto por participante, sem limitar a quantidade; a pessoa pode votar em todos os Jogadores da Partida.
+5. Confirmar os Votos em conjunto e voltar a uma tela neutra antes de passar o aparelho.
 6. Não exibir placar parcial.
 7. Após o último Voto, mostrar somente `Votação concluída` e o botão `Exibir resultado`.
 8. Ao tocar, mostrar os totais, o vencedor ou todos os empatados.

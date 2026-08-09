@@ -11,7 +11,7 @@ Implementar Quem é Mais Provável com votação secreta no mesmo aparelho, conf
 
 - Seleção de participantes e sorteio de Perguntas sem repetição.
 - Passagem segura do aparelho e telas neutras entre votantes.
-- Um Voto obrigatório por participante, inclusive em si mesmo.
+- Um ou mais Votos obrigatórios por participante, sem limite além dos Jogadores da Partida e inclusive em si mesmo.
 - Persistência incremental e retomada de Votação interrompida.
 - Registro temporal de Partidas, Perguntas, Votações e cada Voto individual.
 - Tela intermediária `Votação concluída` antes de qualquer resultado.
@@ -38,3 +38,4 @@ Implementar Quem é Mais Provável com votação secreta no mesmo aparelho, conf
 - Resultados agregados cobrem vencedor e empates; Votos individuais permanecem ocultos e exigem confirmação explícita a cada revelação.
 - Testes automatizados cobrem as costuras acordadas de domínio, projeção de privacidade e persistência. A suíte completa terminou com 35 testes aprovados, e o fluxo mobile foi validado no navegador local.
 - A revisão em dois eixos foi aplicada; os achados sobre vocabulário, reconhecimento de Votação em andamento, cronologia do início e encerramento direto foram corrigidos. A segunda passada não encontrou achados bloqueantes de padrões ou especificação.
+- Em 2026-08-09, a regra foi ampliada: cada Jogador pode selecionar um ou mais Jogadores na mesma cédula, inclusive todos, antes de passar o aparelho.

@@ -26,7 +26,7 @@ import {
 import {
   beginMyVote, beginSecretVotingMatch, deleteInterruptedVoting, endSecretVotingMatch,
   hasVotingInProgress, interruptSecretVotingMatch, isSecretVotingMatch,
-  nextSecretVotingQuestion, recordVote, reshuffleSecretVotingDeck,
+  nextSecretVotingQuestion, recordVotes, reshuffleSecretVotingDeck,
   resumeSecretVotingMatch, revealVotingResult, secretVotingView, startSecretVoting,
 } from "./domain/secret-voting.js";
 
@@ -426,8 +426,8 @@ function secretVotingGameView(state) {
     return page("Passe o aparelho", "Tela neutra", `<div class="neutral-screen"><span aria-hidden="true">🔒</span>${votingPlayerCard(state, secret.currentVoterId, "<p>Só toque quando estiver com o aparelho.</p>")}<button data-action="begin-my-vote">Começar meu voto</button></div>`, '<div class="actions"><button class="secondary" data-action="leave-secret">← Sair</button><button class="danger" data-action="end-secret-match">Encerrar partida</button></div>');
   }
   if (secret.phase === "ballot") {
-    const options = active.playerIds.map((playerId) => `<label class="vote-choice"><input type="radio" name="chosenPlayerId" value="${escapeHtml(playerId)}" required>${votingPlayerCard(state, playerId)}</label>`).join("");
-    return page(secret.question.text, `Voto de ${escapeHtml(playerName(state, secret.currentVoterId))}`, `<form id="vote-form"><fieldset><legend>Escolha exatamente um Jogador</legend><div class="vote-grid">${options}</div></fieldset><button type="submit">Confirmar meu Voto</button></form>`, '<div class="actions"><button class="secondary" data-action="leave-secret">← Sair</button><button class="danger" data-action="end-secret-match">Encerrar partida</button></div>');
+    const options = active.playerIds.map((playerId) => `<label class="vote-choice"><input type="checkbox" name="chosenPlayerIds" value="${escapeHtml(playerId)}">${votingPlayerCard(state, playerId)}</label>`).join("");
+    return page(secret.question.text, `Voto de ${escapeHtml(playerName(state, secret.currentVoterId))}`, `<form id="vote-form"><fieldset><legend>Escolha um ou mais Jogadores</legend><div class="vote-grid">${options}</div></fieldset><button type="submit">Confirmar meus Votos</button></form>`, '<div class="actions"><button class="secondary" data-action="leave-secret">← Sair</button><button class="danger" data-action="end-secret-match">Encerrar partida</button></div>');
   }
   if (secret.phase === "voting-complete") {
     return page("Votação concluída", "Todos votaram", '<div class="neutral-screen"><span aria-hidden="true">✓</span><p>Nenhum resultado foi exibido ainda.</p><button data-action="reveal-voting-result">Exibir resultado</button></div>');
@@ -545,6 +545,10 @@ function refreshTimedView(state) {
 }
 
 function formValues(form) { return Object.fromEntries(new FormData(form)); }
+
+function checkedValues(form, name) {
+  return [...form.querySelectorAll(`[name="${name}"]:checked`)].map((input) => input.value);
+}
 function safely(action) { try { action(); } catch (error) { showToast(error.message); } }
 function recordChallengeFromInterface(result) {
   headbandMenuOpen = false;
@@ -578,15 +582,16 @@ app.addEventListener("submit", (event) => {
       store.update((state) => values.id ? updateCustomContent(state, values.id, values) : addCustomContent(state, values));
       navigate(`#content?game=${values.game}`); showToast("Conteúdo salvo.");
     } else if (formId === "timed-game-form") {
-      const playerIds = [...event.target.querySelectorAll('[name="playerIds"]:checked')].map((input) => input.value);
+      const playerIds = checkedValues(event.target, "playerIds");
       store.update((state) => beginTimedMatch(state, { game: event.target.dataset.game, playerIds }));
       render(); playSound("start", store.load());
     } else if (formId === "secret-voting-form") {
-      const playerIds = [...event.target.querySelectorAll('[name="playerIds"]:checked')].map((input) => input.value);
+      const playerIds = checkedValues(event.target, "playerIds");
       store.update((state) => beginSecretVotingMatch(state, { playerIds }));
       revealedVotingId = null; render();
     } else if (formId === "vote-form") {
-      store.update((state) => recordVote(state, values.chosenPlayerId));
+      const chosenPlayerIds = checkedValues(event.target, "chosenPlayerIds");
+      store.update((state) => recordVotes(state, chosenPlayerIds));
       render();
     } else if (event.target.id === "content-filter") {
       location.hash = `#content?game=${values.game}`;

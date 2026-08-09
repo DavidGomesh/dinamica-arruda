@@ -102,27 +102,39 @@ export function beginMyVote(state) {
   return withSecretVoting(state, { ...match.secretVoting, phase: "ballot" });
 }
 
-export function recordVote(state, chosenPlayerId, dependencies = {}) {
+export function recordVotes(state, chosenPlayerIds, dependencies = {}) {
   const match = requireSecretVoting(state);
   const secret = match.secretVoting;
   if (secret.phase !== "ballot") throw new Error("Comece seu Voto antes de escolher.");
-  if (!match.playerIds.includes(chosenPlayerId)) throw new Error("Escolha um Jogador desta Partida.");
+  if (!Array.isArray(chosenPlayerIds) || chosenPlayerIds.length === 0) {
+    throw new Error("Escolha pelo menos um Jogador desta Partida.");
+  }
+  if (new Set(chosenPlayerIds).size !== chosenPlayerIds.length
+    || chosenPlayerIds.some((playerId) => !match.playerIds.includes(playerId))) {
+    throw new Error("Escolha Jogadores desta Partida sem repetição.");
+  }
   const voterId = secret.currentVoterId;
   if (secret.voting.votes.some((vote) => vote.voterId === voterId)) {
     throw new Error("Este Jogador já realizou seu Voto.");
   }
-  const voteId = nextId(dependencies, "voto");
-  let next = gameRecords.recordVote(state, {
-    voteId,
-    votingId: secret.voting.id,
-    questionId: secret.question.id,
-    voterId,
-    chosenPlayerId,
-  }, dependencies);
-  const event = next.activeMatch.events.at(-1);
-  const votes = [...secret.voting.votes, {
-    id: voteId, voterId, chosenPlayerId, occurredAt: event.occurredAt,
-  }];
+  let next = state;
+  const submittedVotes = chosenPlayerIds.map((chosenPlayerId) => {
+    const voteId = nextId(dependencies, "voto");
+    next = gameRecords.recordVote(next, {
+      voteId,
+      votingId: secret.voting.id,
+      questionId: secret.question.id,
+      voterId,
+      chosenPlayerId,
+    }, dependencies);
+    return {
+      id: voteId,
+      voterId,
+      chosenPlayerId,
+      occurredAt: next.activeMatch.events.at(-1).occurredAt,
+    };
+  });
+  const votes = [...secret.voting.votes, ...submittedVotes];
   const currentIndex = secret.voting.currentIndex + 1;
   const complete = currentIndex >= secret.voting.voterIds.length;
   let completedQuestions = secret.completedQuestions;

@@ -9,7 +9,7 @@ import {
   endSecretVotingMatch,
   interruptSecretVotingMatch,
   nextSecretVotingQuestion,
-  recordVote,
+  recordVotes,
   resumeSecretVotingMatch,
   revealVotingResult,
   secretVotingView,
@@ -59,7 +59,7 @@ test("depois de um Voto a projeção pública não mostra placar parcial nem Vot
   state = startSecretVoting(state, dependencies);
   assert.equal(state.activeMatch.events.at(-1).type, "voting-started");
   state = beginMyVote(state, dependencies);
-  state = recordVote(state, "p2", dependencies);
+  state = recordVotes(state, ["p2"], dependencies);
 
   const view = secretVotingView(state);
   assert.equal(view.phase, "handoff");
@@ -71,15 +71,41 @@ test("depois de um Voto a projeção pública não mostra placar parcial nem Vot
   assert.equal(state.activeMatch.events.at(-1).occurredAt.instant, "2026-08-08T18:00:00.000Z");
 });
 
+test("um Jogador pode confirmar Votos em vários Jogadores antes de passar o aparelho", () => {
+  let serial = 0;
+  const dependencies = {
+    clock,
+    createId: () => `id-${serial += 1}`,
+    random: () => 0,
+  };
+  let state = beginSecretVotingMatch(stateWithPlayers(), { playerIds: ["p1", "p2"] }, dependencies);
+  state = startSecretVoting(state, dependencies);
+  state = beginMyVote(state);
+  state = recordVotes(state, ["p1", "p2"], dependencies);
+
+  assert.equal(state.activeMatch.secretVoting.phase, "handoff");
+  assert.equal(state.activeMatch.secretVoting.currentVoterId, "p2");
+  assert.deepEqual(state.activeMatch.secretVoting.voting.votes.map((vote) => ({
+    voterId: vote.voterId,
+    chosenPlayerId: vote.chosenPlayerId,
+  })), [
+    { voterId: "p1", chosenPlayerId: "p1" },
+    { voterId: "p1", chosenPlayerId: "p2" },
+  ]);
+  assert.deepEqual(state.activeMatch.events.slice(-2).map((event) => event.type), [
+    "vote-recorded", "vote-recorded",
+  ]);
+});
+
 test("resultado só aparece depois da tela intermediária e informa todos os empatados", () => {
   let serial = 0;
   const dependencies = { clock, createId: () => `id-${serial += 1}`, random: () => 0 };
   let state = beginSecretVotingMatch(stateWithPlayers(), { playerIds: ["p1", "p2"] }, dependencies);
   state = startSecretVoting(state);
   state = beginMyVote(state);
-  state = recordVote(state, "p1", dependencies);
+  state = recordVotes(state, ["p1"], dependencies);
   state = beginMyVote(state);
-  state = recordVote(state, "p2", dependencies);
+  state = recordVotes(state, ["p2"], dependencies);
 
   const completed = secretVotingView(state);
   assert.equal(completed.phase, "voting-complete");
@@ -104,7 +130,7 @@ test("recarregar e retomar preserva Votos feitos, próximo votante e cronologia"
   const dependencies = { clock: changingClock, createId: () => `id-${serial += 1}`, random: () => 0 };
   let state = beginSecretVotingMatch(stateWithPlayers(), { playerIds: ["p1", "p2"] }, dependencies);
   state = startSecretVoting(state);
-  state = recordVote(beginMyVote(state), "p2", dependencies);
+  state = recordVotes(beginMyVote(state), ["p2"], dependencies);
   now = new Date("2026-08-08T18:05:00.000Z");
   state = interruptSecretVotingMatch(state, { ...dependencies, reason: "browser-closed" });
 
@@ -133,12 +159,12 @@ test("excluir Votação interrompida preserva Perguntas concluídas e descarta s
   const dependencies = { clock, createId: () => `id-${serial += 1}`, random: () => 0 };
   let state = beginSecretVotingMatch(stateWithPlayers(), { playerIds: ["p1", "p2"] }, dependencies);
   state = startSecretVoting(state);
-  state = recordVote(beginMyVote(state), "p1", dependencies);
-  state = recordVote(beginMyVote(state), "p1", dependencies);
+  state = recordVotes(beginMyVote(state), ["p1"], dependencies);
+  state = recordVotes(beginMyVote(state), ["p1"], dependencies);
   state = nextSecretVotingQuestion(revealVotingResult(state), dependencies);
   const discardedQuestionId = state.activeMatch.secretVoting.question.id;
   state = startSecretVoting(state);
-  state = recordVote(beginMyVote(state), "p2", dependencies);
+  state = recordVotes(beginMyVote(state), ["p2"], dependencies);
   state = interruptSecretVotingMatch(state, dependencies);
   state = deleteInterruptedVoting(state, dependencies);
 
@@ -156,7 +182,7 @@ test("encerrar durante a Votação preserva Votos feitos e finaliza a Partida an
   const dependencies = { clock, createId: () => `id-${serial += 1}`, random: () => 0 };
   let state = beginSecretVotingMatch(stateWithPlayers(), { playerIds: ["p1", "p2"] }, dependencies);
   state = startSecretVoting(state);
-  state = recordVote(beginMyVote(state), "p2", dependencies);
+  state = recordVotes(beginMyVote(state), ["p2"], dependencies);
   state = endSecretVotingMatch(state, dependencies);
 
   assert.equal(state.activeMatch, null);
