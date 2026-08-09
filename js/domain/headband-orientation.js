@@ -15,6 +15,14 @@ export function headbandChallengeSize(content = "") {
   return "normal";
 }
 
+export function headbandGestureResult({ deltaX, deltaY }, { minDistance = 56, axisRatio = 1.15 } = {}) {
+  const horizontal = Math.abs(deltaX);
+  const vertical = Math.abs(deltaY);
+  if (horizontal >= minDistance && horizontal >= vertical * axisRatio) return "correct";
+  if (vertical >= minDistance && vertical >= horizontal * axisRatio) return "skipped";
+  return null;
+}
+
 export function headbandOrientationDecision(input) {
   const activePhase = ["countdown", "challenge"].includes(input.phase);
   const activeTurn = input.routeName === "game-palavraNaTesta"

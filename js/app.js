@@ -9,8 +9,8 @@ import { parseBackup, previewBackup, serializeBackup } from "./domain/backup.js"
 import { formatTimestamp } from "./domain/time.js";
 import { deleteMatch, historyByDay, matchHistory, playerStatistics } from "./domain/history.js";
 import {
-  createLandscapeLockController, headbandChallengeSize, headbandOrientationDecision, HEADBAND_CLOCK_ACTION,
-  HEADBAND_PAUSE_REASON, isHeadbandMobileDevice,
+  createLandscapeLockController, headbandChallengeSize, headbandGestureResult, headbandOrientationDecision,
+  HEADBAND_CLOCK_ACTION, HEADBAND_PAUSE_REASON, isHeadbandMobileDevice,
 } from "./domain/headband-orientation.js";
 import {
   advanceClock, beginTimedMatch, beginTurn, clockView, completeTimedMatch, completeTurnSummary,
@@ -34,6 +34,7 @@ let lastSoundToken = "";
 let revealedVotingId = null;
 let revealedHistoryMatchId = null;
 let toastTimeout = null;
+let headbandGesture = null;
 const portraitOrientation = window.matchMedia("(orientation: portrait)");
 const standaloneDisplay = window.matchMedia("(display-mode: standalone)");
 const landscapeLock = createLandscapeLockController({
@@ -467,7 +468,8 @@ function gameView(state, game) {
     ? '<div class="result-actions"><button class="correct" data-action="challenge-result" data-result="correct">✓ Acertaram</button><button class="missed" data-action="challenge-result" data-result="missed">✕ Não acertaram</button></div>'
     : '<div class="headband-zones"><button class="skipped" data-action="challenge-result" data-result="skipped"><span>↷</span> Pulou</button><button class="correct" data-action="challenge-result" data-result="correct"><span>✓</span> Acertou</button></div>';
   if (game === "palavraNaTesta") {
-    return page(playerName(state, timed.currentTurn.playerId), `Ciclo ${timed.cycleNumber}`, `<div class="headband-stage"><div class="headband-center">${timerMarkup(state)}<div class="headband-feedback-slot">${feedback}</div>${challenge}<div class="actions game-controls"><button class="secondary" data-action="pause-timed">Pausar</button><button class="danger" data-action="end-turn">Encerrar Turno</button><button class="danger" data-action="end-match">Encerrar partida</button></div></div>${actions}</div>${correction}`, '<a class="button secondary" href="#home">← Início</a>');
+    const gestureStatus = feedback || '<div class="headband-gesture-hint">← → Acerto · ↑ ↓ Pulo</div>';
+    return page(playerName(state, timed.currentTurn.playerId), `Ciclo ${timed.cycleNumber}`, `<div class="headband-stage" aria-label="Deslize para esquerda ou direita para registrar Acerto; deslize para cima ou baixo para registrar Pulo"><div class="headband-center">${timerMarkup(state)}<div class="headband-feedback-slot">${gestureStatus}</div>${challenge}<div class="actions game-controls"><button class="secondary" data-action="pause-timed">Pausar</button><button class="danger" data-action="end-turn">Encerrar Turno</button><button class="danger" data-action="end-match">Encerrar partida</button></div></div>${actions}</div>${correction}`, '<a class="button secondary" href="#home">← Início</a>');
   }
   return page(playerName(state, timed.currentTurn.playerId), `Ciclo ${timed.cycleNumber}`, `${timerMarkup(state)}${challenge}${actions}${feedback}${correction}<div class="actions game-controls"><button class="secondary" data-action="pause-timed">Pausar</button><button class="danger" data-action="end-turn">Encerrar Turno</button><button class="danger" data-action="end-match">Encerrar partida</button></div>`, '<a class="button secondary" href="#home">← Início</a>');
 }
@@ -495,6 +497,11 @@ function render() {
 
 function formValues(form) { return Object.fromEntries(new FormData(form)); }
 function safely(action) { try { action(); } catch (error) { showToast(error.message); } }
+function recordChallengeFromInterface(result) {
+  store.update((state) => recordChallengeResult(state, result, { nowMs: Date.now() }));
+  playSound(result === "correct" ? "correct" : "missed", store.load());
+  render();
+}
 
 app.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -547,6 +554,30 @@ app.addEventListener("change", (event) => {
       event.target.files[0].text().then((text) => { document.querySelector("#backup-input").value = text; });
     }
   });
+});
+
+app.addEventListener("pointerdown", (event) => {
+  const stage = event.target.closest(".headband-stage");
+  if (!document.body.classList.contains("headband-active") || !stage
+    || event.target.closest("button") || !event.isPrimary) return;
+  headbandGesture = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY };
+  stage.setPointerCapture?.(event.pointerId);
+});
+
+app.addEventListener("pointerup", (event) => {
+  if (!headbandGesture || headbandGesture.pointerId !== event.pointerId) return;
+  const gesture = headbandGesture;
+  headbandGesture = null;
+  if (!document.body.classList.contains("headband-active")) return;
+  const result = headbandGestureResult({
+    deltaX: event.clientX - gesture.startX,
+    deltaY: event.clientY - gesture.startY,
+  });
+  if (result) safely(() => recordChallengeFromInterface(result));
+});
+
+app.addEventListener("pointercancel", (event) => {
+  if (headbandGesture?.pointerId === event.pointerId) headbandGesture = null;
 });
 
 app.addEventListener("click", (event) => {
@@ -615,8 +646,7 @@ app.addEventListener("click", (event) => {
       });
       render();
     } else if (action === "challenge-result") {
-      store.update((state) => recordChallengeResult(state, button.dataset.result, { nowMs: Date.now() }));
-      playSound(button.dataset.result === "correct" ? "correct" : "missed", store.load()); render();
+      recordChallengeFromInterface(button.dataset.result);
     } else if (action === "correct-result") {
       store.update((state) => correctLatestResult(state, button.dataset.result)); showToast("Resultado corrigido."); render();
     } else if (action === "pause-timed") {

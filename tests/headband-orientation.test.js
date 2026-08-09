@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   createLandscapeLockController,
   headbandChallengeSize,
+  headbandGestureResult,
   headbandOrientationDecision,
   isHeadbandMobileDevice,
 } from "../js/domain/headband-orientation.js";
@@ -112,4 +113,19 @@ test("saída durante bloqueio pendente libera a orientação depois que a API re
 
 test("Desafio extenso usa a tipografia mais compacta da tela na testa", () => {
   assert.equal(headbandChallengeSize("a".repeat(160)), "very-long");
+});
+
+test("deslizar para esquerda ou direita registra Acerto", () => {
+  assert.equal(headbandGestureResult({ deltaX: -90, deltaY: 8 }), "correct");
+  assert.equal(headbandGestureResult({ deltaX: 90, deltaY: -8 }), "correct");
+});
+
+test("deslizar para cima ou baixo registra Pulo", () => {
+  assert.equal(headbandGestureResult({ deltaX: 6, deltaY: -90 }), "skipped");
+  assert.equal(headbandGestureResult({ deltaX: -6, deltaY: 90 }), "skipped");
+});
+
+test("toque curto e diagonal ambígua não registram resultado", () => {
+  assert.equal(headbandGestureResult({ deltaX: 18, deltaY: 4 }), null);
+  assert.equal(headbandGestureResult({ deltaX: 70, deltaY: 70 }), null);
 });
