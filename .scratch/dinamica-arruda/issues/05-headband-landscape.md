@@ -1,6 +1,6 @@
 # Palavra na Testa em paisagem durante o Turno
 
-Status: ready-for-agent
+Status: claimed
 Blocked by: 02
 
 ## Objetivo
