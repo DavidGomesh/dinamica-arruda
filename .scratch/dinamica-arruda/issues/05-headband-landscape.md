@@ -15,6 +15,8 @@ Fazer a fase ativa do Turno de Palavra na Testa privilegiar a orientação paisa
 - Liberar qualquer bloqueio de orientação ao sair da fase ativa, pausar, encerrar o Turno, encerrar a Partida ou navegar para outra tela.
 - Em celular e tablet, remover os botões de resultado e transformar a tela ativa inteira em superfície de gesto: deslizar para esquerda ou direita registra Acerto; deslizar para cima ou baixo registra Pulo. Toques curtos e diagonais ambíguas não registram resultado.
 - Em desktop, manter botões clicáveis de Pulo à esquerda e Acerto à direita; gestos não são ativados nessa interface.
+- No modo móvel, recolher Pausar, Encerrar Turno e Encerrar Partida em um menu hambúrguer para evitar toques acidentais. O menu e seus comandos não registram gestos.
+- Usar a área liberada pelos controles para dar prioridade máxima ao Desafio, com tipografia substancialmente maior e adaptação apenas para conteúdo longo.
 - Posicionar o tempo em uma faixa própria acima do Desafio dentro da coluna central. O tempo nunca pode sobrepor, empurrar lateralmente nem reduzir a leitura do Desafio.
 - Reservar largura estável para o número do tempo com algarismos tabulares. Nos segundos finais, tensão, cor e pulsação só podem usar `transform`/cor, sem alterar a posição ou a largura do componente.
 - Manter Pausar e Encerrar fora das zonas de toque principais, em uma faixa central inferior compacta, respeitando as safe areas do aparelho.
@@ -39,6 +41,8 @@ Fazer a fase ativa do Turno de Palavra na Testa privilegiar a orientação paisa
 - Em celular e tablet, gestos horizontais registram Acerto e gestos verticais registram Pulo em qualquer direção do respectivo eixo.
 - Em desktop, os botões Pulo e Acerto permanecem visíveis e clicáveis, nessa ordem da esquerda para a direita.
 - Toque curto, diagonal ambígua e gesto iniciado sobre Pausar ou Encerrar não registram resultado.
+- Pausar e Encerrar ficam recolhidos no menu hambúrguer durante a experiência móvel.
+- Cada novo Turno entra no topo da viewport, sem herdar rolagem nem gesto pendente do Turno anterior.
 - Girar para retrato durante o Turno não consome tempo nem registra resultado; voltar à paisagem continua do ponto correto.
 - Pausar ou sair não deixa a orientação travada.
 - Falta de suporte ou rejeição de `screen.orientation.lock()` não quebra a Partida.
@@ -50,3 +54,5 @@ Fazer a fase ativa do Turno de Palavra na Testa privilegiar a orientação paisa
 - Plano consolidado em 2026-08-08 a partir do relato de uso físico com o aparelho na testa. A implementação atual usa três elementos `fixed` sobrepostos; por isso o tempo cobre o Desafio e sua animação compete com o `translateX(-50%)` usado para centralizá-lo.
 - Implementação concluída em 2026-08-08 com gestos no modo móvel, botões Pulo/Acerto no desktop, pausa automática em retrato, tentativa opcional de bloqueio em PWA/tela cheia e liberação segura da orientação.
 - QA final aprovado em 667×375 para o modo móvel: botões de resultado ocultos, instrução de gestos visível, Desafio longo inteiro e sem sobreposição ou overflow. Em 1024×768, o desktop manteve Pulo à esquerda e Acerto à direita, com a instrução de gestos oculta.
+- Ajuste solicitado em 2026-08-08: controles administrativos recolhidos em menu no móvel, Desafio ampliado e estado transitório limpo na entrada de cada novo Turno.
+- QA do ajuste aprovado em viewport móvel real de 667×375: tempo e menu permanecem separados, os controles ficam recolhidos e uma palavra de doze letras ocupa uma linha ampla sem sobreposição nem overflow.

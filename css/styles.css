@@ -111,6 +111,7 @@ fieldset { border: 0; padding: 0; margin: 0 0 1rem; }
 .headband-feedback { border: 3px solid var(--ink); border-radius: 999px; padding: .5rem .8rem; font-size: 1rem; font-weight: 1000; background: var(--paper); pointer-events: none; }
 .headband-feedback.correct { background: #bbf7d0; }.headband-feedback.skipped { background: #fecaca; }
 .headband-gesture-hint { display: none; color: var(--muted); font-size: .82rem; font-weight: 950; letter-spacing: .04em; text-align: center; }
+.headband-menu { display: none; }
 .headband-rotate { min-height: 70vh; display: grid; place-items: center; align-content: center; gap: 1rem; padding: 2rem; text-align: center; }
 .headband-rotate > span { font-size: clamp(5rem, 20vw, 9rem); line-height: 1; }
 .headband-rotate strong { font-size: clamp(1.8rem, 7vw, 3.5rem); line-height: 1; }
@@ -128,8 +129,14 @@ fieldset { border: 0; padding: 0; margin: 0 0 1rem; }
 .headband-active .headband-countdown .countdown { min-height: 0; }
 .headband-active .headband-countdown .game-controls { margin: 0; }
 .headband-active .headband-stage { min-height: 100dvh; display: grid; place-items: stretch center; position: relative; padding-inline: max(.6rem, env(safe-area-inset-left)) max(.6rem, env(safe-area-inset-right)); background: var(--cream); touch-action: none; user-select: none; cursor: grab; }
-.headband-active .headband-center { width: min(86vw, 900px); min-width: 0; display: grid; grid-template-rows: auto minmax(2.25rem, auto) minmax(0, 1fr) auto; gap: .4rem; padding: max(.6rem, env(safe-area-inset-top)) .65rem max(.6rem, env(safe-area-inset-bottom)); }
+.headband-active .headband-center { width: min(96vw, 1100px); min-width: 0; display: grid; grid-template-rows: auto minmax(1.5rem, auto) minmax(0, 1fr); gap: .25rem; padding: max(.45rem, env(safe-area-inset-top)) .35rem max(.45rem, env(safe-area-inset-bottom)); }
 .headband-active .headband-zones { display: none; }
+.headband-active .headband-desktop-controls { display: none; }
+.headband-active .headband-menu { display: block; position: absolute; z-index: 4; top: max(.55rem, env(safe-area-inset-top)); right: max(.55rem, env(safe-area-inset-right)); touch-action: manipulation; }
+.headband-active .headband-menu summary { display: grid; width: 48px; height: 48px; place-items: center; border: 3px solid var(--ink); border-radius: 12px; background: var(--paper); box-shadow: 0 3px 0 var(--ink); cursor: pointer; font-size: 1.7rem; font-weight: 1000; list-style: none; }
+.headband-active .headband-menu summary::-webkit-details-marker { display: none; }
+.headband-active .headband-menu-panel { position: absolute; top: calc(100% + .45rem); right: 0; display: grid; gap: .45rem; width: min(220px, 55vw); padding: .6rem; border: 3px solid var(--ink); border-radius: 14px; background: var(--paper); box-shadow: 0 5px 0 var(--ink); }
+.headband-active .headband-menu-panel button { min-height: 42px; padding: .45rem .6rem; border-width: 2px; border-radius: 9px; box-shadow: 0 2px 0 var(--ink); font-size: .78rem; }
 .headband-active .game-timer { width: min(100%, 9rem); min-height: 0; justify-self: center; pointer-events: none; background: var(--paper); border: 3px solid var(--ink); border-radius: 14px; padding: .3rem .5rem; animation: none; }
 .headband-active .game-timer span { display: inline-block; min-width: 2ch; font-size: clamp(2.5rem, 11vh, 4.5rem); }
 .headband-active .game-timer.tense span { animation: timer-pulse var(--pulse-speed) ease-in-out infinite alternate; }
@@ -138,13 +145,11 @@ fieldset { border: 0; padding: 0; margin: 0 0 1rem; }
 .headband-active .headband-feedback-slot { min-height: 2.25rem; }
 .headband-active .headband-gesture-hint { display: block; }
 .headband-active .headband-feedback { padding: .3rem .65rem; font-size: .8rem; }
-.headband-active .challenge-card { width: 100%; height: 100%; min-height: 0; padding: .75rem; border-radius: 16px; box-shadow: 0 4px 0 var(--ink); pointer-events: none; overflow: hidden; }
-.headband-active .challenge-card p { margin-bottom: .35rem; font-size: .68rem; }
-.headband-active .challenge-card strong { max-width: 100%; font-size: clamp(1.75rem, 6vw, 4.5rem); overflow-wrap: anywhere; }
-.headband-active .challenge-card.long strong { font-size: clamp(1.35rem, 4.5vw, 3.2rem); }
-.headband-active .challenge-card.very-long strong { font-size: clamp(1rem, 3.5vw, 2.2rem); }
-.headband-active .game-controls { flex-wrap: nowrap; gap: .3rem; margin: 0; }
-.headband-active .game-controls button { min-width: 0; min-height: 38px; padding: .3rem .4rem; border-width: 2px; border-radius: 9px; box-shadow: 0 2px 0 var(--ink); font-size: clamp(.58rem, 1.35vw, .78rem); }
+.headband-active .challenge-card { width: 100%; height: 100%; min-height: 0; padding: .45rem; border-radius: 16px; box-shadow: 0 4px 0 var(--ink); pointer-events: none; overflow: hidden; }
+.headband-active .challenge-card p { display: none; }
+.headband-active .challenge-card strong { max-width: 100%; font-size: clamp(3.5rem, 10vw, 7.5rem); line-height: .92; }
+.headband-active .challenge-card.long strong { font-size: clamp(2.25rem, 7.5vw, 5rem); overflow-wrap: anywhere; }
+.headband-active .challenge-card.very-long strong { font-size: clamp(1.45rem, 4.8vw, 3.2rem); overflow-wrap: anywhere; }
 .question-card, .neutral-screen, .winner-card { min-height: 220px; display: grid; place-items: center; align-content: center; gap: 1rem; text-align: center; border: 4px solid var(--ink); border-radius: 22px; padding: 1.5rem; background: white; box-shadow: 0 7px 0 var(--ink); margin-bottom: 1.25rem; }
 .question-card span, .winner-card span { color: var(--muted); font-weight: 950; text-transform: uppercase; letter-spacing: .1em; }
 .question-card strong, .winner-card strong { font-size: clamp(2rem, 8vw, 4.5rem); line-height: 1.05; }

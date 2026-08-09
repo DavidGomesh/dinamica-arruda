@@ -35,6 +35,7 @@ let revealedVotingId = null;
 let revealedHistoryMatchId = null;
 let toastTimeout = null;
 let headbandGesture = null;
+let headbandImmersive = false;
 const portraitOrientation = window.matchMedia("(orientation: portrait)");
 const standaloneDisplay = window.matchMedia("(display-mode: standalone)");
 const landscapeLock = createLandscapeLockController({
@@ -126,8 +127,12 @@ function applyHeadbandClockDecision(state, decision, nowMs) {
 
 function syncHeadbandExperience(state, route) {
   const decision = headbandDecision(state, route);
+  const enteringImmersive = decision.immersive && !headbandImmersive;
+  if (!decision.immersive) headbandGesture = null;
+  headbandImmersive = decision.immersive;
   document.body.classList.toggle("headband-active", decision.immersive);
   document.body.classList.toggle("headband-needs-landscape", decision.needsLandscape);
+  if (enteringImmersive) window.scrollTo(0, 0);
   const turnKey = state.activeMatch?.timed?.currentTurn?.id
     ? `${state.activeMatch.id}:${state.activeMatch.timed.currentTurn.id}` : null;
   void landscapeLock.sync({
@@ -355,6 +360,12 @@ function timerMarkup(state) {
   return `<div class="game-timer ${view.tense ? "tense" : ""} ${view.finalSeconds ? "final" : ""}"${tensionStyle} role="timer" aria-label="${view.seconds} segundos restantes"><span>${view.seconds}</span><small>segundos</small></div>`;
 }
 
+function timedControlsMarkup({ headband = false } = {}) {
+  const buttons = '<button class="secondary" data-action="pause-timed">Pausar</button><button class="danger" data-action="end-turn">Encerrar Turno</button><button class="danger" data-action="end-match">Encerrar partida</button>';
+  if (!headband) return `<div class="actions game-controls">${buttons}</div>`;
+  return `<div class="actions game-controls headband-desktop-controls">${buttons}</div><details class="headband-menu"><summary aria-label="Abrir opções do Turno">☰</summary><div class="headband-menu-panel">${buttons}</div></details>`;
+}
+
 function votingPlayerCard(state, playerId, content = "") {
   const player = state.players.find((candidate) => candidate.id === playerId);
   return `<div class="voting-player"><span class="player-badge" style="background:${player?.color || "#fff"};color:${player?.textColor || "#111"}">${iconFor(player?.icon)}</span><strong>${escapeHtml(playerName(state, playerId))}</strong>${content}</div>`;
@@ -445,7 +456,7 @@ function gameView(state, game) {
     return page("O baralho acabou", GAME_LABELS[game], '<p class="lede">Todos os Desafios ativos já apareceram. Embaralhe novamente para continuar.</p><button data-action="reshuffle">Embaralhar novamente</button>', '<a class="button secondary" href="#home">← Início</a>');
   }
   if (timed.phase === "countdown") {
-    const countdownContent = `${timerMarkup(state)}<div class="actions game-controls"><button class="secondary" data-action="pause-timed">Pausar</button><button class="danger" data-action="end-turn">Encerrar Turno</button><button class="danger" data-action="end-match">Encerrar partida</button></div>`;
+    const countdownContent = `${timerMarkup(state)}${timedControlsMarkup({ headband: game === "palavraNaTesta" })}`;
     return page(playerName(state, timed.currentTurn.playerId), `Ciclo ${timed.cycleNumber} · prepare o Turno`, game === "palavraNaTesta"
       ? `<div class="headband-countdown">${countdownContent}</div>` : countdownContent, '<a class="button secondary" href="#home">← Início</a>');
   }
@@ -469,7 +480,7 @@ function gameView(state, game) {
     : '<div class="headband-zones"><button class="skipped" data-action="challenge-result" data-result="skipped"><span>↷</span> Pulou</button><button class="correct" data-action="challenge-result" data-result="correct"><span>✓</span> Acertou</button></div>';
   if (game === "palavraNaTesta") {
     const gestureStatus = feedback || '<div class="headband-gesture-hint">← → Acerto · ↑ ↓ Pulo</div>';
-    return page(playerName(state, timed.currentTurn.playerId), `Ciclo ${timed.cycleNumber}`, `<div class="headband-stage" aria-label="Deslize para esquerda ou direita para registrar Acerto; deslize para cima ou baixo para registrar Pulo"><div class="headband-center">${timerMarkup(state)}<div class="headband-feedback-slot">${gestureStatus}</div>${challenge}<div class="actions game-controls"><button class="secondary" data-action="pause-timed">Pausar</button><button class="danger" data-action="end-turn">Encerrar Turno</button><button class="danger" data-action="end-match">Encerrar partida</button></div></div>${actions}</div>${correction}`, '<a class="button secondary" href="#home">← Início</a>');
+    return page(playerName(state, timed.currentTurn.playerId), `Ciclo ${timed.cycleNumber}`, `<div class="headband-stage"><div class="headband-center">${timerMarkup(state)}<div class="headband-feedback-slot">${gestureStatus}</div>${challenge}</div>${timedControlsMarkup({ headband: true })}${actions}</div>${correction}`, '<a class="button secondary" href="#home">← Início</a>');
   }
   return page(playerName(state, timed.currentTurn.playerId), `Ciclo ${timed.cycleNumber}`, `${timerMarkup(state)}${challenge}${actions}${feedback}${correction}<div class="actions game-controls"><button class="secondary" data-action="pause-timed">Pausar</button><button class="danger" data-action="end-turn">Encerrar Turno</button><button class="danger" data-action="end-match">Encerrar partida</button></div>`, '<a class="button secondary" href="#home">← Início</a>');
 }
@@ -559,7 +570,7 @@ app.addEventListener("change", (event) => {
 app.addEventListener("pointerdown", (event) => {
   const stage = event.target.closest(".headband-stage");
   if (!document.body.classList.contains("headband-active") || !stage
-    || event.target.closest("button") || !event.isPrimary) return;
+    || event.target.closest("button, .headband-menu") || !event.isPrimary) return;
   headbandGesture = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY };
   stage.setPointerCapture?.(event.pointerId);
 });
