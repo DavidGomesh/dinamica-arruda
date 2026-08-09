@@ -86,12 +86,9 @@ fieldset { border: 0; padding: 0; margin: 0 0 1rem; }
 .player-turn small { display: block; font-size: .72rem; }
 .countdown, .game-timer { min-height: 180px; display: grid; place-items: center; align-content: center; text-align: center; }
 .countdown span, .game-timer span { font-size: clamp(6rem, 25vw, 12rem); font-weight: 1000; line-height: .8; font-variant-numeric: tabular-nums; }
-.game-timer span { display: inline-block; min-width: 2ch; }
 .countdown small, .game-timer small { margin-top: 1rem; font-weight: 950; text-transform: uppercase; letter-spacing: .12em; }
-.game-timer.tense { color: color-mix(in srgb, #c2410c calc(var(--tension) * 100%), var(--ink)); filter: saturate(calc(1 + var(--tension))); }
-.game-timer.tense span { animation: timer-pulse var(--pulse-speed) ease-in-out infinite alternate; }
-.game-timer.final { color: #b91c1c; }
-.game-timer.final span { animation-duration: .3s; }
+.game-timer.tense { color: color-mix(in srgb, #c2410c calc(var(--tension) * 100%), var(--ink)); filter: saturate(calc(1 + var(--tension))); animation: timer-pulse var(--pulse-speed) ease-in-out infinite alternate; }
+.game-timer.final { color: #b91c1c; animation-duration: .3s; }
 .challenge-card { min-height: 180px; display: grid; place-items: center; align-content: center; text-align: center; background: white; border: 4px solid var(--ink); border-radius: 22px; padding: 1.5rem; box-shadow: 0 7px 0 var(--ink); }
 .challenge-card p { color: var(--muted); text-transform: uppercase; letter-spacing: .12em; font-weight: 900; }
 .challenge-card strong { font-size: clamp(2.2rem, 9vw, 5.5rem); line-height: 1; }
@@ -133,17 +130,21 @@ fieldset { border: 0; padding: 0; margin: 0 0 1rem; }
 .headband-active .headband-center { min-width: 0; grid-column: 2; grid-row: 1; z-index: 2; display: grid; grid-template-rows: auto minmax(2.25rem, auto) minmax(0, 1fr) auto; gap: .4rem; padding: max(.6rem, env(safe-area-inset-top)) .65rem max(.6rem, env(safe-area-inset-bottom)); background: var(--cream); border-inline: 3px solid var(--ink); }
 .headband-active .headband-zones { display: contents; }
 .headband-active .headband-zones button { min-height: 100dvh; grid-row: 1; border-radius: 0; border-block: 0; box-shadow: none; flex-direction: column; font-size: clamp(1rem, 2.4vw, 1.6rem); }
-.headband-active .headband-zones .correct { grid-column: 1; padding-left: max(1rem, env(safe-area-inset-left)); }
-.headband-active .headband-zones .skipped { grid-column: 3; padding-right: max(1rem, env(safe-area-inset-right)); }
+.headband-active .headband-zones .skipped { grid-column: 1; padding-left: max(1rem, env(safe-area-inset-left)); }
+.headband-active .headband-zones .correct { grid-column: 3; padding-right: max(1rem, env(safe-area-inset-right)); }
 .headband-active .headband-zones button span { font-size: clamp(2.5rem, 7vw, 5rem); }
-.headband-active .game-timer { width: min(100%, 9rem); min-height: 0; justify-self: center; pointer-events: none; background: var(--paper); border: 3px solid var(--ink); border-radius: 14px; padding: .3rem .5rem; }
-.headband-active .game-timer span { font-size: clamp(2.5rem, 11vh, 4.5rem); }
+.headband-active .game-timer { width: min(100%, 9rem); min-height: 0; justify-self: center; pointer-events: none; background: var(--paper); border: 3px solid var(--ink); border-radius: 14px; padding: .3rem .5rem; animation: none; }
+.headband-active .game-timer span { display: inline-block; min-width: 2ch; font-size: clamp(2.5rem, 11vh, 4.5rem); }
+.headband-active .game-timer.tense span { animation: timer-pulse var(--pulse-speed) ease-in-out infinite alternate; }
+.headband-active .game-timer.final span { animation-duration: .3s; }
 .headband-active .game-timer small { margin-top: .25rem; font-size: .65rem; }
 .headband-active .headband-feedback-slot { min-height: 2.25rem; }
 .headband-active .headband-feedback { padding: .3rem .65rem; font-size: .8rem; }
 .headband-active .challenge-card { width: 100%; height: 100%; min-height: 0; padding: .75rem; border-radius: 16px; box-shadow: 0 4px 0 var(--ink); pointer-events: none; overflow: hidden; }
 .headband-active .challenge-card p { margin-bottom: .35rem; font-size: .68rem; }
 .headband-active .challenge-card strong { max-width: 100%; font-size: clamp(1.75rem, 6vw, 4.5rem); overflow-wrap: anywhere; }
+.headband-active .challenge-card.long strong { font-size: clamp(1.35rem, 4.5vw, 3.2rem); }
+.headband-active .challenge-card.very-long strong { font-size: clamp(1rem, 3.5vw, 2.2rem); }
 .headband-active .game-controls { flex-wrap: nowrap; gap: .3rem; margin: 0; }
 .headband-active .game-controls button { min-width: 0; min-height: 38px; padding: .3rem .4rem; border-width: 2px; border-radius: 9px; box-shadow: 0 2px 0 var(--ink); font-size: clamp(.58rem, 1.35vw, .78rem); }
 .question-card, .neutral-screen, .winner-card { min-height: 220px; display: grid; place-items: center; align-content: center; gap: 1rem; text-align: center; border: 4px solid var(--ink); border-radius: 22px; padding: 1.5rem; background: white; box-shadow: 0 7px 0 var(--ink); margin-bottom: 1.25rem; }

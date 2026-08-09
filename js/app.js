@@ -9,7 +9,8 @@ import { parseBackup, previewBackup, serializeBackup } from "./domain/backup.js"
 import { formatTimestamp } from "./domain/time.js";
 import { deleteMatch, historyByDay, matchHistory, playerStatistics } from "./domain/history.js";
 import {
-  createLandscapeLockController, headbandOrientationDecision,
+  createLandscapeLockController, headbandChallengeSize, headbandOrientationDecision, HEADBAND_CLOCK_ACTION,
+  HEADBAND_PAUSE_REASON, isHeadbandMobileDevice,
 } from "./domain/headband-orientation.js";
 import {
   advanceClock, beginTimedMatch, beginTurn, clockView, completeTimedMatch, completeTurnSummary,
@@ -34,7 +35,6 @@ let revealedVotingId = null;
 let revealedHistoryMatchId = null;
 let toastTimeout = null;
 const portraitOrientation = window.matchMedia("(orientation: portrait)");
-const coarsePointer = window.matchMedia("(pointer: coarse)");
 const standaloneDisplay = window.matchMedia("(display-mode: standalone)");
 const landscapeLock = createLandscapeLockController({
   lock: (orientation) => window.screen.orientation.lock(orientation),
@@ -88,7 +88,11 @@ function currentRoute() {
 }
 
 function isMobileHeadbandDevice() {
-  return navigator.maxTouchPoints > 0 || coarsePointer.matches;
+  return isHeadbandMobileDevice({
+    userAgent: navigator.userAgent,
+    platform: navigator.platform,
+    maxTouchPoints: navigator.maxTouchPoints,
+  });
 }
 
 function canLockLandscape() {
@@ -109,6 +113,16 @@ function headbandDecision(state, route = currentRoute()) {
   });
 }
 
+function applyHeadbandClockDecision(state, decision, nowMs) {
+  if (decision.clockAction === HEADBAND_CLOCK_ACTION.pause) {
+    return interruptTimedMatch(state, { nowMs, reason: HEADBAND_PAUSE_REASON });
+  }
+  if (decision.clockAction === HEADBAND_CLOCK_ACTION.resume) {
+    return resumeTimedMatch(state, { nowMs, reason: HEADBAND_PAUSE_REASON });
+  }
+  return state;
+}
+
 function syncHeadbandExperience(state, route) {
   const decision = headbandDecision(state, route);
   document.body.classList.toggle("headband-active", decision.immersive);
@@ -120,13 +134,8 @@ function syncHeadbandExperience(state, route) {
     key: turnKey,
   }).catch(() => {});
 
-  if (decision.clockAction === "pause-orientation") {
-    store.update((current) => interruptTimedMatch(current, { nowMs: Date.now(), reason: "orientation" }));
-    render();
-    return true;
-  }
-  if (decision.clockAction === "resume-orientation") {
-    store.update((current) => resumeTimedMatch(current, { nowMs: Date.now(), reason: "orientation" }));
+  if (decision.clockAction) {
+    store.update((current) => applyHeadbandClockDecision(current, decision, Date.now()));
     render();
     return true;
   }
@@ -450,12 +459,13 @@ function gameView(state, game) {
 
   const correction = active.events.some((event) => event.type === "challenge-finished" && event.turnId === timed.currentTurn.id)
     ? correctionMarkup(game) : "";
-  const challenge = `<div class="challenge-card"><p>Desafio</p><strong>${escapeHtml(timed.currentChallenge.content)}</strong></div>`;
+  const challengeSize = game === "palavraNaTesta" ? ` ${headbandChallengeSize(timed.currentChallenge.content)}` : "";
+  const challenge = `<div class="challenge-card${challengeSize}"><p>Desafio</p><strong>${escapeHtml(timed.currentChallenge.content)}</strong></div>`;
   const feedback = game === "palavraNaTesta" && timed.lastResult && Date.now() <= timed.feedbackUntilMs
     ? `<div class="headband-feedback ${timed.lastResult}" role="status">${timed.lastResult === "correct" ? "✓ Acerto" : "↷ Pulo"}</div>` : "";
   const actions = game === "mimica"
     ? '<div class="result-actions"><button class="correct" data-action="challenge-result" data-result="correct">✓ Acertaram</button><button class="missed" data-action="challenge-result" data-result="missed">✕ Não acertaram</button></div>'
-    : '<div class="headband-zones"><button class="correct" data-action="challenge-result" data-result="correct"><span>✓</span> Acertou</button><button class="skipped" data-action="challenge-result" data-result="skipped"><span>↷</span> Pulou</button></div>';
+    : '<div class="headband-zones"><button class="skipped" data-action="challenge-result" data-result="skipped"><span>↷</span> Pulou</button><button class="correct" data-action="challenge-result" data-result="correct"><span>✓</span> Acertou</button></div>';
   if (game === "palavraNaTesta") {
     return page(playerName(state, timed.currentTurn.playerId), `Ciclo ${timed.cycleNumber}`, `<div class="headband-stage"><div class="headband-center">${timerMarkup(state)}<div class="headband-feedback-slot">${feedback}</div>${challenge}<div class="actions game-controls"><button class="secondary" data-action="pause-timed">Pausar</button><button class="danger" data-action="end-turn">Encerrar Turno</button><button class="danger" data-action="end-match">Encerrar partida</button></div></div>${actions}</div>${correction}`, '<a class="button secondary" href="#home">← Início</a>');
   }
@@ -601,8 +611,7 @@ app.addEventListener("click", (event) => {
       const nowMs = Date.now();
       store.update((state) => {
         const next = beginTurn(state, id, { nowMs });
-        return headbandDecision(next).clockAction === "pause-orientation"
-          ? interruptTimedMatch(next, { nowMs, reason: "orientation" }) : next;
+        return applyHeadbandClockDecision(next, headbandDecision(next), nowMs);
       });
       render();
     } else if (action === "challenge-result") {

@@ -1,6 +1,6 @@
 # Palavra na Testa em paisagem durante o Turno
 
-Status: claimed
+Status: ready-for-agent
 Blocked by: 02
 
 ## Objetivo
@@ -13,7 +13,7 @@ Fazer a fase ativa do Turno de Palavra na Testa privilegiar a orientação paisa
 - Ao entrar nessa fase, tentar travar a orientação com `screen.orientation.lock("landscape")` quando a API estiver disponível e o documento estiver em tela cheia ou como PWA instalada. A falha da API é esperada e não pode bloquear o Turno.
 - Quando o navegador não permitir o bloqueio, detectar retrato com media query e mostrar uma camada não modal pedindo `Gire o aparelho para jogar`, sem consumir o tempo do Turno. A opção mais segura é interromper o relógio enquanto a orientação estiver inadequada e retomá-lo quando a paisagem voltar, usando as operações existentes de interrupção e retomada.
 - Liberar qualquer bloqueio de orientação ao sair da fase ativa, pausar, encerrar o Turno, encerrar a Partida ou navegar para outra tela.
-- Construir o layout ativo como uma grade de três faixas: zona de Acerto à esquerda, área central de conteúdo e zona de Pulo à direita. As duas zonas laterais ocupam toda a altura útil e continuam sendo os únicos alvos interativos principais.
+- Construir o layout ativo como uma grade de três faixas: zona de Pulo à esquerda, área central de conteúdo e zona de Acerto à direita. As duas zonas laterais ocupam toda a altura útil e continuam sendo os únicos alvos interativos principais.
 - Posicionar o tempo em uma faixa própria acima do Desafio dentro da coluna central. O tempo nunca pode sobrepor, empurrar lateralmente nem reduzir a leitura do Desafio.
 - Reservar largura estável para o número do tempo com algarismos tabulares. Nos segundos finais, tensão, cor e pulsação só podem usar `transform`/cor, sem alterar a posição ou a largura do componente.
 - Manter Pausar e Encerrar fora das zonas de toque principais, em uma faixa central inferior compacta, respeitando as safe areas do aparelho.
@@ -45,3 +45,5 @@ Fazer a fase ativa do Turno de Palavra na Testa privilegiar a orientação paisa
 ## Comments
 
 - Plano consolidado em 2026-08-08 a partir do relato de uso físico com o aparelho na testa. A implementação atual usa três elementos `fixed` sobrepostos; por isso o tempo cobre o Desafio e sua animação compete com o `translateX(-50%)` usado para centralizá-lo.
+- Implementação concluída em 2026-08-08 com Pulo à esquerda, Acerto à direita, pausa automática em retrato, tentativa opcional de bloqueio em PWA/tela cheia e liberação segura da orientação.
+- QA visual aprovado em 667×375, 844×390, 1024×768 e 1366×1024: sem overflow da viewport, sem interseção entre tempo e Desafio, zonas laterais ocupando toda a altura e controles contidos na coluna central. O fallback em retrato também foi validado em 390×844.

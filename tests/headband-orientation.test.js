@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 
 import {
   createLandscapeLockController,
+  headbandChallengeSize,
   headbandOrientationDecision,
+  isHeadbandMobileDevice,
 } from "../js/domain/headband-orientation.js";
 
 const landscapeCountdown = {
@@ -81,4 +83,33 @@ test("sair do Turno libera o bloqueio de orientação", async () => {
   await controller.sync({ requestLandscape: true, key: "match-1:turn-1" });
   assert.equal(await controller.sync({ requestLandscape: false, key: null }), "unlocked");
   assert.equal(unlocked, true);
+});
+
+test("desktop Windows com tela sensível ao toque não entra no modo móvel", () => {
+  assert.equal(isHeadbandMobileDevice({
+    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    platform: "Win32",
+    maxTouchPoints: 10,
+  }), false);
+});
+
+test("saída durante bloqueio pendente libera a orientação depois que a API responde", async () => {
+  let resolveLock;
+  let unlockCount = 0;
+  const pendingLock = new Promise((resolve) => { resolveLock = resolve; });
+  const controller = createLandscapeLockController({
+    lock: () => pendingLock,
+    unlock: () => { unlockCount += 1; },
+  });
+
+  const locking = controller.sync({ requestLandscape: true, key: "match-1:turn-1" });
+  await controller.sync({ requestLandscape: false, key: null });
+  resolveLock();
+
+  assert.equal(await locking, "unlocked-after-lock");
+  assert.equal(unlockCount, 2);
+});
+
+test("Desafio extenso usa a tipografia mais compacta da tela na testa", () => {
+  assert.equal(headbandChallengeSize("a".repeat(160)), "very-long");
 });

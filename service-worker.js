@@ -1,4 +1,4 @@
-const CACHE_NAME = "dinamica-arruda-v9";
+const CACHE_NAME = "dinamica-arruda-v10";
 const APP_SHELL = [
   "./", "./index.html", "./css/styles.css", "./js/app.js",
   "./js/storage/store.js", "./js/domain/time.js", "./js/domain/text.js", "./js/domain/players.js",
